@@ -1,0 +1,47 @@
+{
+  "name": "velox",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm --filter velox-frontend dev",
+    "dev:full": "pnpm run dev:storybook & pnpm run dev:cypress & pnpm run dev",
+    "dev:storybook": "pnpm --filter velox-frontend storybook",
+    "dev:cypress": "pnpm --filter velox-frontend cypress open",
+    "build": "pnpm --filter velox-frontend build",
+    "start": "pnpm --filter velox-frontend start",
+    "mobile:start": "cd apps/mobile && npx expo start --clear",
+    "test": "vitest",
+    "test:phase1": "vitest run --config vitest.phase1.config.ts --reporter verbose",
+    "test:e2e": "pnpm --filter velox-frontend cypress run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "pnpm --filter velox-frontend lint",
+    "seed:exercises": "pnpm --filter velox-frontend seed:exercises"
+  },
+  "devDependencies": {
+    "@jest/globals": "^30.0.4",
+    "@tensorflow/tfjs": "4.11.0",
+    "@testing-library/react-hooks": "^8.0.1",
+    "@types/jest": "^30.0.0",
+    "@types/jsdom": "^21.1.7",
+    "@vitest/coverage-v8": "^1.3.1",
+    "expo": "~49.0.0",
+    "supabase": "^1.226.4",
+    "vitest": "^1.3.1"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.79.2",
+    "@trpc/client": "^11.4.1",
+    "@trpc/react-query": "^11.4.1",
+    "@trpc/server": "^11.4.1",
+    "zod": "^3.25.49"
+  },
+  "resolutions": {
+    "react": "18.2.0",
+    "react-native": "0.72.6"
+  }
+}

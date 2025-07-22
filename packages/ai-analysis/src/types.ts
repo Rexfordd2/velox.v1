@@ -1,0 +1,1 @@
+export type MovementPhase = 'rest' | 'eccentric' | 'concentric' | 'hold'; 

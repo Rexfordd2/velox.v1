@@ -1,0 +1,28 @@
+{
+  "cli": { 
+    "version": ">= 3.16.0" 
+  },
+  "build": {
+    "preview": {
+      "channel": "beta",
+      "distribution": "internal",
+      "ios": { 
+        "simulator": false 
+      }
+    },
+    "production": {
+      "channel": "stable",
+      "distribution": "store",
+      "ios": { 
+        "simulator": false 
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": { 
+        "appleId": "you@example.com" 
+      }
+    }
+  }
+} 

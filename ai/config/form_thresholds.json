@@ -1,0 +1,116 @@
+{
+  "common": {
+    "stability_threshold": 0.7,
+    "confidence_threshold": 0.5,
+    "smoothing_window": 5,
+    "min_rep_frames": 10
+  },
+  "squat": {
+    "min_depth": 90,
+    "max_depth": 130,
+    "min_hip_angle": 45,
+    "max_hip_angle": 120,
+    "min_torso_angle": 150,
+    "max_torso_angle": 180,
+    "stability_threshold": 0.7,
+    "movement_thresholds": {
+      "velocity_threshold": 0.1,
+      "peak_prominence": 0.3,
+      "min_phase_frames": 3,
+      "window_size": 5
+    }
+  },
+  "deadlift": {
+    "min_hip_angle": 60,
+    "max_hip_angle": 100,
+    "back_angle": 45,
+    "knee_angle": 110,
+    "stability_threshold": 0.7,
+    "movement_thresholds": {
+      "velocity_threshold": 0.1,
+      "peak_prominence": 0.3,
+      "min_phase_frames": 3,
+      "window_size": 5
+    }
+  },
+  "bench_press": {
+    "elbow_angle_deg": 90,
+    "bar_path_deviation_cm": 5,
+    "stability_threshold": 0.7,
+    "movement_thresholds": {
+      "velocity_threshold": 0.1,
+      "peak_prominence": 0.3,
+      "min_phase_frames": 3,
+      "window_size": 5
+    }
+  },
+  "overhead_press": {
+    "shoulder_angle_deg": 180,
+    "bar_path_deviation_cm": 5,
+    "stability_threshold": 0.7,
+    "movement_thresholds": {
+      "velocity_threshold": 0.1,
+      "peak_prominence": 0.3,
+      "min_phase_frames": 3,
+      "window_size": 5
+    }
+  },
+  "barbell_row": {
+    "back_angle_deg": 45,
+    "elbow_extension_deg": 160,
+    "elbow_angle_deg": 90,
+    "bar_path_deviation_cm": 5,
+    "stability_threshold": 0.7,
+    "movement_thresholds": {
+      "velocity_threshold": 0.1,
+      "peak_prominence": 0.3,
+      "min_phase_frames": 3,
+      "window_size": 5
+    }
+  },
+  "pullup": {
+    "elbow_angle_deg": 45,
+    "shoulder_angle_deg": 160,
+    "min_height_ratio": 0.8,
+    "stability_threshold": 0.7,
+    "movement_thresholds": {
+      "velocity_threshold": 0.1,
+      "peak_prominence": 0.3,
+      "min_phase_frames": 3,
+      "window_size": 5
+    }
+  },
+  "pushup": {
+    "elbow_angle_deg": 90,
+    "hip_angle_deg": 15,
+    "neck_angle_deg": 15,
+    "stability_threshold": 0.7,
+    "movement_thresholds": {
+      "velocity_threshold": 0.1,
+      "peak_prominence": 0.3,
+      "min_phase_frames": 3,
+      "window_size": 5
+    }
+  },
+  "lunge": {
+    "front_knee_angle_deg": 90,
+    "back_knee_angle_deg": 90,
+    "torso_angle_deg": 180,
+    "stability_threshold": 0.7,
+    "movement_thresholds": {
+      "velocity_threshold": 0.1,
+      "peak_prominence": 0.3,
+      "min_phase_frames": 3,
+      "window_size": 5
+    }
+  },
+  "global": {
+    "min_detection_confidence": 0.5,
+    "min_tracking_confidence": 0.5,
+    "processing_timeout": 5.0,
+    "max_retries": 3,
+    "backoff_base_delay": 0.1,
+    "backoff_max_delay": 2.0,
+    "frame_buffer_size": 5
+  }
+} 

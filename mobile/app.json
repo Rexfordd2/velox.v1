@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Velox",
+    "slug": "velox",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1F2937"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.velox.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Velox needs access to the camera to analyze your lifts."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1F2937"
+      },
+      "package": "com.velox.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Velox to access your camera to analyze your form during workouts."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Velox to access your photos to update your profile picture."
+        }
+      ],
+      [
+        "@sentry/react-native",
+        {
+          "sentryProperties": "./sentry.properties",
+          "enableInExpoDevelopment": true
+        }
+      ],
+      "expo-firebase-analytics"
+    ]
+  }
+} 

@@ -1,0 +1,52 @@
+{
+  "squat": {
+    "hipDepth": {
+      "min": 0.8,
+      "max": 1.2
+    },
+    "kneeValgus": {
+      "max": 5
+    },
+    "backAngle": {
+      "min": 45,
+      "max": 90
+    }
+  },
+  "bench": {
+    "barPath": {
+      "maxDeviation": 0.1
+    },
+    "elbowAngle": {
+      "min": 80,
+      "max": 100
+    },
+    "shoulderBlades": {
+      "retracted": true
+    }
+  },
+  "deadlift": {
+    "backAngle": {
+      "min": 0,
+      "max": 15
+    },
+    "hipHinge": {
+      "min": 45
+    },
+    "barPath": {
+      "maxDeviation": 0.15
+    }
+  },
+  "overheadPress": {
+    "barPath": {
+      "maxDeviation": 0.1
+    },
+    "elbowAngle": {
+      "min": 80,
+      "max": 100
+    },
+    "shoulderAngle": {
+      "min": 0,
+      "max": 30
+    }
+  }
+} 

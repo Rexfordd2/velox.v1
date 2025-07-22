@@ -1,0 +1,4 @@
+name: refresh_leaderboards
+schedule: '*/10 * * * *'
+function: cron_refresh_leaderboards
+verify_jwt: false 

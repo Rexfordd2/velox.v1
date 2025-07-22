@@ -1,0 +1,67 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+venv/
+__pycache__/
+*.py[cod]
+
+# Testing
+coverage/
+.nyc_output/
+.jest/
+cypress/videos/
+cypress/screenshots/
+
+# Production
+build/
+dist/
+.next/
+out/
+.expo/
+web-build/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+debug.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Mobile specific
+*.ipa
+*.apk
+*.aab
+*.hprof
+*.orig.*
+
+# Supabase
+**/supabase/.temp/
+.supabase/
+
+# Python
+*.egg-info/
+*.egg
+*.pyc
+.Python
+.python-version
+.pytest_cache/
+
+# Misc
+.cache/
+.temp/
+.tmp/
+*.log 

@@ -1,0 +1,37 @@
+[
+  {
+    "id": "squat",
+    "name": "Squat",
+    "icon": "🏋️",
+    "description": "A compound exercise that targets the lower body, primarily the quadriceps, hamstrings, and glutes.",
+    "difficulty": "beginner"
+  },
+  {
+    "id": "deadlift",
+    "name": "Deadlift",
+    "icon": "💪",
+    "description": "A compound exercise that works the posterior chain, including the back, glutes, and hamstrings.",
+    "difficulty": "intermediate"
+  },
+  {
+    "id": "bench-press",
+    "name": "Bench Press",
+    "icon": "🏋️‍♂️",
+    "description": "A compound exercise that primarily targets the chest, shoulders, and triceps.",
+    "difficulty": "intermediate"
+  },
+  {
+    "id": "overhead-press",
+    "name": "Overhead Press",
+    "icon": "💪",
+    "description": "A compound exercise that targets the shoulders, triceps, and upper chest.",
+    "difficulty": "intermediate"
+  },
+  {
+    "id": "pull-up",
+    "name": "Pull-up",
+    "icon": "🏋️‍♀️",
+    "description": "A compound exercise that targets the back, biceps, and shoulders.",
+    "difficulty": "advanced"
+  }
+] 

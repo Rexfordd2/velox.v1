@@ -1,0 +1,61 @@
+{
+  "expo": {
+    "name": "Velox",
+    "slug": "velox",
+    "version": "1.0.0",
+    "scheme": "velox",
+    "platforms": ["ios", "android", "web"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "bundleIdentifier": "com.yourcompany.velox",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos to share them in posts.",
+        "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera for exercise tracking.",
+        "UIBackgroundModes": ["remote-notification"]
+      }
+    },
+    "android": {
+      "package": "com.yourcompany.velox",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.VIBRATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-av",
+      "expo-haptics",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to share them in posts."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for exercise tracking."
+        }
+      ],
+      "@sentry/react-native",
+      "expo-firebase-analytics"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "34d3c67e-cc34-420b-addb-8165ae5c355e"
+      }
+    }
+  }
+} 

@@ -1,0 +1,22 @@
+[
+  {
+    "id": 1,
+    "name": "Push-up",
+    "description": "A basic bodyweight exercise that targets the chest, shoulders, and triceps",
+    "category": "strength",
+    "difficulty": "beginner",
+    "muscle_groups": ["chest", "shoulders", "triceps"],
+    "equipment": ["none"],
+    "instructions": "Start in a plank position with hands slightly wider than shoulders. Lower your body until your chest nearly touches the floor, then push back up."
+  },
+  {
+    "id": 2,
+    "name": "Squat",
+    "description": "A fundamental lower body exercise that targets the quadriceps, hamstrings, and glutes",
+    "category": "strength",
+    "difficulty": "beginner",
+    "muscle_groups": ["quadriceps", "hamstrings", "glutes"],
+    "equipment": ["none"],
+    "instructions": "Stand with feet shoulder-width apart. Lower your body by bending your knees and pushing your hips back, as if sitting in a chair. Return to standing position."
+  }
+] 
