@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from './supabase';
 
 interface Session {
   id: number;
@@ -18,10 +18,9 @@ interface UserStats {
 }
 
 export async function getUserStats(userId: string): Promise<UserStats> {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  if (!supabase) {
+    return { total_sessions: 0, average_score: 0, best_score: 0, exercise_counts: {} };
+  }
 
   const { data: sessions, error } = await supabase
     .from('sessions')

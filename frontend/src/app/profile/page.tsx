@@ -1,16 +1,20 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import getUserProfile from "@/lib/getUserProfile";
+import getUserProfile, { type Profile } from "@/lib/getUserProfile";
 import getSavedWorkouts, { type SavedWorkout } from "@/lib/getSavedWorkouts";
 import getUserDocuments, { type UserDocument } from "@/lib/getUserDocuments";
 import { Avatar, AvatarImage, AvatarFallback } from "@radix-ui/react-avatar";
 import Link from "next/link";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function ProfilePage() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["profile"],
-    queryFn: getUserProfile,
+  const { user } = useAuth();
+  const username = user?.username ?? "";
+  const { data, isLoading, error } = useQuery<Profile>({
+    queryKey: ["profile", username],
+    enabled: !!username,
+    queryFn: ({ queryKey }) => getUserProfile(String(queryKey[1] ?? "")),
   });
 
   const { data: workouts = [] } = useQuery<SavedWorkout[]>({

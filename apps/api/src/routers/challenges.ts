@@ -11,6 +11,28 @@ const createChallengeSchema = z.object({
 });
 
 export const challengesRouter = createTRPCRouter({
+  getAll: protectedProcedure
+    .query(async ({ ctx }) => {
+      const { supabase } = ctx;
+
+      const { data, error } = await supabase
+        .from('challenges')
+        .select(`
+          *,
+          movement:movements ( id, name ),
+          participants:challenge_participants (
+            user:users ( id, username, avatar_url ),
+            status
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to fetch challenges', cause: error });
+      }
+      return data ?? [];
+    }),
+
   create: protectedProcedure
     .input(createChallengeSchema)
     .mutation(async ({ ctx, input }) => {
@@ -124,5 +146,87 @@ export const challengesRouter = createTRPCRouter({
       });
 
       return fullChallenge;
+    }),
+
+  update: protectedProcedure
+    .input(z.object({
+      id: z.string().uuid(),
+      title: z.string().min(1).max(100).optional(),
+      description: z.string().min(1).max(500).optional(),
+      endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      status: z.enum(['draft','active','completed','cancelled']).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { supabase, user } = ctx;
+
+      const { data: existing, error: fetchErr } = await supabase
+        .from('challenges')
+        .select('id, creator_id')
+        .eq('id', input.id)
+        .single();
+
+      if (fetchErr || !existing) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Challenge not found', cause: fetchErr });
+      }
+      if (existing.creator_id !== user.id) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Not allowed' });
+      }
+
+      const updateData: Record<string, any> = {};
+      if (input.title !== undefined) updateData.title = input.title;
+      if (input.description !== undefined) updateData.description = input.description;
+      if (input.endDate !== undefined) updateData.end_date = new Date(input.endDate).toISOString();
+      if (input.status !== undefined) updateData.status = input.status;
+
+      const { data: updated, error } = await supabase
+        .from('challenges')
+        .update(updateData)
+        .eq('id', input.id)
+        .select('*')
+        .single();
+
+      if (error) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to update challenge', cause: error });
+      }
+      return updated;
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { supabase, user } = ctx;
+
+      const { data: existing, error: fetchErr } = await supabase
+        .from('challenges')
+        .select('id, creator_id')
+        .eq('id', input.id)
+        .single();
+
+      if (fetchErr || !existing) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Challenge not found', cause: fetchErr });
+      }
+      if (existing.creator_id !== user.id) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Not allowed' });
+      }
+
+      // Delete participants first due to FK
+      const { error: delPartsErr } = await supabase
+      .from('challenge_participants')
+      .delete()
+      .eq('challenge_id', input.id);
+
+      if (delPartsErr) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to delete participants', cause: delPartsErr });
+      }
+
+      const { error } = await supabase
+        .from('challenges')
+        .delete()
+        .eq('id', input.id);
+
+      if (error) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to delete challenge', cause: error });
+      }
+      return { success: true } as const;
     }),
 }); 

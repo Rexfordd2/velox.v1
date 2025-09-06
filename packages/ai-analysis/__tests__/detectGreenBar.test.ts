@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { detectGreenBar } from "../../mobile/src/lib/vision/detectGreenBar";
+import { detectGreenBar } from "@/lib/vision/detectGreenBar";
 import path from "path";
 
 test("detects sample bar ~300 px", async () => {

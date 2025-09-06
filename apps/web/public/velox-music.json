@@ -1,0 +1,14 @@
+[
+  {
+    "id": "velox:demo:1",
+    "title": "Demo Groove",
+    "artist": "Velox",
+    "bpm": 120,
+    "energy": 0.6,
+    "vibes": ["groove", "focus"],
+    "durationMs": 180000,
+    "url": "/demo-audio/demo.mp3"
+  }
+]
+
+

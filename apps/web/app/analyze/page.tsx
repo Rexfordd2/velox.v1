@@ -1,3 +1,4 @@
+"use client";
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { RadialBarChart, RadialBar, ResponsiveContainer } from 'recharts';
@@ -123,12 +124,7 @@ export default function AnalyzePage() {
                       }
                     ]}
                   >
-                    <RadialBar
-                      minAngle={15}
-                      background
-                      clockWise={true}
-                      dataKey="value"
-                    />
+                    <RadialBar dataKey="value" />
                   </RadialBarChart>
                 </ResponsiveContainer>
               </div>

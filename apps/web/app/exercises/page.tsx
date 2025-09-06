@@ -1,5 +1,10 @@
-import React, { useState } from 'react';
-import { useExercises } from '@/lib/hooks/useExercises';
+"use client";
+import React, { useState, useEffect } from 'react';
+import { useExercisesInfinite } from '@/lib/hooks/useExercises';
+import LoadingState from '@/components/ui/LoadingState';
+import EmptyState from '@/components/ui/EmptyState';
+import ErrorState from '@/components/ui/ErrorState';
+import { useSearchParams, useRouter } from 'next/navigation';
 // TODO: Replace with real ExerciseCard
 function ExerciseCard({ exercise }: any) {
   return (
@@ -24,11 +29,22 @@ const CATEGORIES = [
 ];
 
 export default function ExercisesPage() {
-  const [search, setSearch] = useState('');
-  const [difficulty, setDifficulty] = useState('');
-  const [primaryMuscle, setPrimaryMuscle] = useState('');
-  const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
-  const { exercises, isLoading } = useExercises({ search, difficulty, primary_muscle: primaryMuscle, category_id: categoryId });
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [search, setSearch] = useState(searchParams.get('search') || '');
+  const [difficulty, setDifficulty] = useState(searchParams.get('difficulty') || '');
+  const [primaryMuscle, setPrimaryMuscle] = useState(searchParams.get('primary_muscle') || '');
+  const [categoryId, setCategoryId] = useState<number | undefined>(searchParams.get('category_id') ? Number(searchParams.get('category_id')) : undefined);
+  const { exercises, isLoading, isError, fetchNextPage, hasMore } = useExercisesInfinite({ search, difficulty, primary_muscle: primaryMuscle, category_id: categoryId, limit: 36, sortBy: 'name', sortDir: 'asc' });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (search) params.set('search', search); else params.delete('search');
+    if (difficulty) params.set('difficulty', difficulty); else params.delete('difficulty');
+    if (primaryMuscle) params.set('primary_muscle', primaryMuscle); else params.delete('primary_muscle');
+    if (categoryId) params.set('category_id', String(categoryId)); else params.delete('category_id');
+    router.replace(`${window.location.pathname}?${params.toString()}`);
+  }, [search, difficulty, primaryMuscle, categoryId, router]);
 
   return (
     <div className="flex gap-8 max-w-7xl mx-auto py-8">
@@ -83,12 +99,16 @@ export default function ExercisesPage() {
         </div>
       </aside>
       <main className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-        {isLoading ? (
-          <div>Loading...</div>
-        ) : (
-          exercises.map(ex => <ExerciseCard key={ex.id} exercise={ex} />)
+        {isLoading && <LoadingState lines={6} />}
+        {isError && <ErrorState onRetry={() => void fetchNextPage()} />}
+        {!isLoading && !isError && (!exercises || exercises.length === 0) && (
+          <EmptyState title="No exercises found" description="Try changing filters or search terms." />
         )}
+        {!isLoading && !isError && exercises?.map(ex => <ExerciseCard key={ex.id} exercise={ex} />)}
       </main>
+      <div className="w-full flex justify-center py-6">
+        <button className="btn" disabled={!hasMore} onClick={() => void fetchNextPage()}>{hasMore ? 'Load more' : 'No more'}</button>
+      </div>
     </div>
   );
 } 

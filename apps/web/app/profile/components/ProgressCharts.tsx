@@ -2,26 +2,16 @@
 
 import { useState } from 'react';
 import { trpc } from '@/app/_trpc/client';
+import { useMemo } from 'react';
 import { format } from 'date-fns';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer
-} from 'recharts';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+// Use shared ProgressChart wrapper instead of direct recharts import
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import LoadingState from '@/components/ui/LoadingState';
+import EmptyState from '@/components/ui/EmptyState';
+import ErrorState from '@/components/ui/ErrorState';
+import ProgressChart from '@/components/ProgressChart';
 
 interface ProgressChartsProps {
   detailed?: boolean;
@@ -32,12 +22,14 @@ type MetricType = 'form' | 'reps' | 'weight' | 'duration';
 export function ProgressCharts({ detailed = false }: ProgressChartsProps) {
   const [selectedExercise, setSelectedExercise] = useState('squat');
   const [selectedMetric, setSelectedMetric] = useState<MetricType>('form');
-  const [timeRange, setTimeRange] = useState('month');
+  const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');
 
-  const { data: workouts = [], isLoading } = trpc.workouts.getHistory.useQuery({
-    exerciseType: selectedExercise,
-    timeRange,
-  });
+  const { data, isLoading, error, refetch } = trpc.workouts.getHistory.useInfiniteQuery(
+    { exerciseType: selectedExercise, timeRange, sortBy: 'created_at', sortDir: 'asc', limit: 100 },
+    { getNextPageParam: (lastPage) => lastPage?.nextCursor }
+  );
+
+  const workouts = useMemo(() => (data?.pages ?? []).flatMap(p => p.items), [data]);
 
   const processData = (data: typeof workouts) => {
     return data.map(workout => ({
@@ -85,7 +77,7 @@ export function ProgressCharts({ detailed = false }: ProgressChartsProps) {
           </SelectContent>
         </Select>
 
-        <Select value={timeRange} onValueChange={setTimeRange}>
+        <Select value={timeRange} onValueChange={(v) => setTimeRange(v as 'week' | 'month' | 'year')}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select time range" />
           </SelectTrigger>
@@ -107,23 +99,7 @@ export function ProgressCharts({ detailed = false }: ProgressChartsProps) {
 
         {(['form', 'reps', 'weight', 'duration'] as MetricType[]).map((metric) => (
           <TabsContent key={metric} value={metric} className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey={metric}
-                  stroke={getMetricColor(metric)}
-                  strokeWidth={2}
-                  dot={{ r: 4 }}
-                  name={getMetricLabel(metric)}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <ProgressChart labels={chartData.map(d => d.date)} values={chartData.map(d => d[metric] as number)} />
           </TabsContent>
         ))}
       </Tabs>
@@ -132,29 +108,13 @@ export function ProgressCharts({ detailed = false }: ProgressChartsProps) {
 
   const renderOverviewChart = () => (
     <div className="h-[300px]">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="date" />
-          <YAxis />
-          <Tooltip />
-          <Legend />
-          <Line
-            type="monotone"
-            dataKey={selectedMetric}
-            stroke={getMetricColor(selectedMetric)}
-            strokeWidth={2}
-            dot={{ r: 4 }}
-            name={getMetricLabel(selectedMetric)}
-          />
-        </LineChart>
-      </ResponsiveContainer>
+      <ProgressChart labels={chartData.map(d => d.date)} values={chartData.map(d => d[selectedMetric] as number)} />
     </div>
   );
 
-  if (isLoading) {
-    return <div className="text-center py-8">Loading progress data...</div>;
-  }
+  if (isLoading) return <LoadingState variant="detail" />;
+  if (error) return <ErrorState onRetry={() => void refetch()} />;
+  if (!workouts || workouts.length === 0) return <EmptyState title="No data yet" description="Work out to see your progress here." />;
 
   return detailed ? renderDetailedView() : renderOverviewChart();
 } 

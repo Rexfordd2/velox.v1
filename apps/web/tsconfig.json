@@ -2,7 +2,17 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@/api/*": ["../api/src/*"],
+      "@velox/obs": ["../../packages/obs/src"],
+      "@velox/sponsor": ["../../packages/sponsor/src"],
+      "@velox/sponsor/*": ["../../packages/sponsor/src/*"]
+      ,"@velox/music": ["../../packages/music/src"],
+      "@velox/music/*": ["../../packages/music/src/*"],
+      "@velox/core": ["../../packages/core/src"],
+      "@velox/core/*": ["../../packages/core/src/*"]
+      ,"@velox/music-sync": ["../../packages/music-sync/src"],
+      "@velox/music-sync/*": ["../../packages/music-sync/src/*"]
     },
     "lib": [
       "dom",
@@ -16,7 +26,7 @@
     "incremental": true,
     "esModuleInterop": true,
     "module": "esnext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
@@ -33,6 +43,10 @@
     "**/*.tsx"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "**/*.stories.tsx",
+    "**/*.stories.ts",
+    "**/*.stories.jsx",
+    "**/*.stories.js"
   ]
 }

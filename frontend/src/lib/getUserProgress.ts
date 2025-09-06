@@ -90,3 +90,30 @@ export async function getUserProgress(userId: string, exerciseId: number): Promi
     last_session
   };
 } 
+
+export interface FormDailyPoint {
+  date: string;
+  avg: number | null;
+  p95: number | null;
+  rom: number | null;
+}
+
+export interface FormRollingPoint {
+  date: string;
+  avg28d: number | null;
+  delta7d: number;
+  trend: 'up' | 'flat' | 'down';
+}
+
+export async function getFormTrends(exercise: string): Promise<{ daily: FormDailyPoint[]; rolling: FormRollingPoint[]; }> {
+  const res = await fetch(`/api/progress/trends?exercise=${encodeURIComponent(exercise)}`, {
+    method: 'GET',
+    headers: { 'content-type': 'application/json' },
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    throw new Error('Failed to load form trends');
+  }
+  const data = await res.json();
+  return data;
+}

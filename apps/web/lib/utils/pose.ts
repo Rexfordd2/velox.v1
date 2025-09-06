@@ -1,5 +1,6 @@
 import { Pose } from '@velox/ai-analysis/src/types/pose';
 import { PoseDetector } from '@velox/ai-analysis/src/utils/poseDetection';
+export { normalizePose } from '@velox/ai-analysis/src/utils/poseNormalize';
 
 /**
  * Detect poses in video frames

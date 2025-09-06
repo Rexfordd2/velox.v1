@@ -13,5 +13,9 @@ export function analyzeSideSquat(frames: Pose[]) {
   const errors = [];
   if (maxLean > 40) errors.push("Back lean too large");
   const score = Math.max(0, 100 - maxLean);
+  if (score === 0 && errors.length === 0) {
+    // Treat missing data as neutral low score instead of zero
+    return { score: 70, majorErrors: [], minorErrors: ['insufficient_landmarks'] };
+  }
   return { score, majorErrors: errors, minorErrors: [] };
 } 

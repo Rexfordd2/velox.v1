@@ -1,22 +1,30 @@
-import { useState } from 'react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@/components/ui/table';
+"use client";
+import { useState, useEffect } from 'react';
+// Fallback simple table markup (ui/table not present)
 import { Button } from '@/components/ui/button';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Exercise } from '@/lib/types/exercise';
 import { ExerciseFormModal } from './ExerciseFormModal';
 import { useExercises, deleteExercise } from '@/lib/hooks/useExercises';
-import { toast } from 'sonner';
+import LoadingState from '@/components/ui/LoadingState';
+import EmptyState from '@/components/ui/EmptyState';
+import ErrorState from '@/components/ui/ErrorState';
+// Replace missing toaster with window.alert
 
 export function ExerciseTable() {
+  const supabase = getSupabaseBrowserClient();
+  const [role, setRole] = useState<string | null>(null);
+
+  // Determine role client-side to hide admin-only controls if not admin
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const r = (data.user?.user_metadata as any)?.role || null;
+      setRole(r);
+    });
+  }, [supabase]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
-  const { exercises, isLoading, mutate } = useExercises();
+  const { exercises, isLoading, isError, mutate } = useExercises();
 
   const handleEdit = (exercise: Exercise) => {
     setSelectedExercise(exercise);
@@ -27,9 +35,9 @@ export function ExerciseTable() {
     try {
       await deleteExercise(slug);
       await mutate();
-      toast.success('Exercise deleted successfully');
+      if (typeof window !== 'undefined') window.alert('Exercise deleted successfully');
     } catch (error) {
-      toast.error('Failed to delete exercise');
+      if (typeof window !== 'undefined') window.alert('Failed to delete exercise');
     }
   };
 
@@ -38,57 +46,72 @@ export function ExerciseTable() {
     setSelectedExercise(null);
   };
 
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
+  if (isLoading) return <LoadingState lines={6} />;
+  if (isError) return <ErrorState onRetry={() => void mutate()} />;
+  if (!exercises || exercises.length === 0) return (
+    <EmptyState
+      title="No exercises yet"
+      description="Create your first exercise to get started."
+      actionLabel={role === 'admin' ? 'New Exercise' : undefined}
+      onAction={role === 'admin' ? () => setIsModalOpen(true) : undefined}
+    />
+  );
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Exercises</h2>
-        <Button onClick={() => setIsModalOpen(true)}>New Exercise</Button>
+        {role === 'admin' && (
+          <Button onClick={() => setIsModalOpen(true)}>New Exercise</Button>
+        )}
       </div>
 
       <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Slug</TableHead>
-              <TableHead>Difficulty</TableHead>
-              <TableHead>Primary Muscle</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {exercises.map((exercise) => (
-              <TableRow key={exercise.id}>
-                <TableCell>{exercise.name}</TableCell>
-                <TableCell>{exercise.slug}</TableCell>
-                <TableCell className="capitalize">{exercise.difficulty}</TableCell>
-                <TableCell>{exercise.primary_muscle}</TableCell>
-                <TableCell>
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEdit(exercise)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDelete(exercise.slug)}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b">
+                <th className="py-2 px-3">Name</th>
+                <th className="py-2 px-3">Slug</th>
+                <th className="py-2 px-3">Difficulty</th>
+                <th className="py-2 px-3">Primary Muscle</th>
+                <th className="py-2 px-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {exercises.map((exercise) => (
+                <tr key={exercise.id} className="border-b">
+                  <td className="py-2 px-3">{exercise.name}</td>
+                  <td className="py-2 px-3">{exercise.slug}</td>
+                  <td className="py-2 px-3 capitalize">{exercise.difficulty}</td>
+                  <td className="py-2 px-3">{exercise.primary_muscle}</td>
+                  <td className="py-2 px-3">
+                    <div className="flex space-x-2">
+                      {role === 'admin' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(exercise)}
+                        >
+                          Edit
+                        </Button>
+                      )}
+                      {role === 'admin' && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleDelete(exercise.slug)}
+                        >
+                          Delete
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <ExerciseFormModal

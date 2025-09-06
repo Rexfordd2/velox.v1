@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
+import { vi, describe, it, test, expect, beforeEach, afterEach } from "vitest";
 
 // minimal env so createClient won't complain
 process.env.NEXT_PUBLIC_SUPABASE_URL = "http://localhost";
@@ -8,6 +8,7 @@ process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon";
 Object.assign(global, {
   describe,
   it,
+  test,
   expect,
   beforeEach,
   afterEach,

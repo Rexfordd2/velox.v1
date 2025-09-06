@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getUserSessions } from '../getUserSessions';
-import { createClient } from '@supabase/supabase-js';
+// Mock supabase singleton
+const fromMock = vi.fn();
+vi.mock('../supabase', () => ({ supabase: { from: (...a: any[]) => fromMock(...a) } }));
 
 // Mock environment variables
 vi.mock('process', () => ({
@@ -48,9 +50,8 @@ describe('getUserSessions', () => {
   });
 
   it('should successfully fetch user sessions', async () => {
-    const mockResponse = { data: mockSessions, error: null };
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
+    const mockResponse = { data: mockSessions, error: null } as any;
+    fromMock.mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       order: vi.fn().mockResolvedValue(mockResponse)
@@ -59,13 +60,12 @@ describe('getUserSessions', () => {
     const result = await getUserSessions('test-user');
 
     expect(result).toEqual(mockSessions);
-    expect(supabase.from).toHaveBeenCalledWith('sessions');
+    expect(fromMock).toHaveBeenCalledWith('sessions');
   });
 
   it('should handle fetch errors', async () => {
     const mockError = new Error('Fetch failed');
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
+    fromMock.mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       order: vi.fn().mockRejectedValue(mockError)
@@ -75,9 +75,8 @@ describe('getUserSessions', () => {
   });
 
   it('should return empty array when no sessions found', async () => {
-    const mockResponse = { data: [], error: null };
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
+    const mockResponse = { data: [], error: null } as any;
+    fromMock.mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       order: vi.fn().mockResolvedValue(mockResponse)

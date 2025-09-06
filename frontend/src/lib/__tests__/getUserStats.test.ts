@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getUserStats } from '../getUserStats';
-import { createClient } from '@supabase/supabase-js';
+const fromMock = vi.fn();
+vi.mock('../supabase', () => ({ supabase: { from: (...a: any[]) => fromMock(...a) } }));
 
 // Mock environment variables
 vi.mock('process', () => ({
@@ -57,9 +58,8 @@ describe('getUserStats', () => {
   });
 
   it('should successfully calculate user stats', async () => {
-    const mockResponse = { data: mockSessions, error: null };
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
+    const mockResponse = { data: mockSessions, error: null } as any;
+    fromMock.mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       order: vi.fn().mockResolvedValue(mockResponse)
@@ -76,13 +76,12 @@ describe('getUserStats', () => {
         2: 1
       }
     });
-    expect(supabase.from).toHaveBeenCalledWith('sessions');
+    expect(fromMock).toHaveBeenCalledWith('sessions');
   });
 
   it('should handle fetch errors', async () => {
     const mockError = new Error('Fetch failed');
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
+    fromMock.mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       order: vi.fn().mockRejectedValue(mockError)
@@ -92,9 +91,8 @@ describe('getUserStats', () => {
   });
 
   it('should return zero stats for new users', async () => {
-    const mockResponse = { data: [], error: null };
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
+    const mockResponse = { data: [], error: null } as any;
+    fromMock.mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       order: vi.fn().mockResolvedValue(mockResponse)

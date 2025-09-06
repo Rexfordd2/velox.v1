@@ -1,0 +1,12 @@
+{
+  "velocityMax": {
+    "olympic": { "con": 3.0, "ecc": 2.5 },
+    "plyo":    { "con": 3.5, "ecc": 3.0 },
+    "bench":   { "con": 2.0, "ecc": 1.8 },
+    "squat_dl":{ "con": 1.8, "ecc": 1.6 },
+    "isolation": { "con": 1.5, "ecc": 1.5 }
+  },
+  "romMinPct": { "squat": 0.70, "bench": 0.90, "deadlift": 0.90, "curl": 0.90, "ohp": 0.90, "row": 0.90, "hip_thrust": 0.90 },
+  "lateralJerkCm": 3.0
+}
+

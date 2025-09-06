@@ -63,8 +63,11 @@ export class Metronome {
     this.isPlaying = true;
 
     // Calculate interval from BPM
-    const intervalMs = (60 / this.config.bpm) * 1000;
-    this.interval = window.setInterval(() => this.playClick(), intervalMs);
+    const schedule = () => {
+      const intervalMs = (60 / this.config.bpm) * 1000;
+      this.interval = window.setInterval(() => this.playClick(), intervalMs);
+    };
+    schedule();
   }
 
   stop() {
@@ -98,8 +101,12 @@ export class Metronome {
   setBpm(bpm: number) {
     this.config.bpm = bpm;
     if (this.isPlaying) {
-      this.stop();
-      this.start();
+      if (this.interval) {
+        clearInterval(this.interval);
+        this.interval = null;
+      }
+      const intervalMs = (60 / this.config.bpm) * 1000;
+      this.interval = window.setInterval(() => this.playClick(), intervalMs);
     }
   }
 } 

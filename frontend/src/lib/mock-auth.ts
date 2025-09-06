@@ -45,11 +45,14 @@ class MockAuthService {
   }
 
   async signOut(): Promise<{ error: Error | null }> {
-    localStorage.removeItem(this.storageKey);
+    if (typeof window !== 'undefined') {
+      try { localStorage.removeItem(this.storageKey); } catch {}
+    }
     return { error: null };
   }
 
   getSession(): MockSession | null {
+    if (typeof window === 'undefined') return null;
     const session = localStorage.getItem(this.storageKey);
     if (!session) return null;
     
@@ -72,7 +75,9 @@ class MockAuthService {
   }
 
   private saveSession(session: MockSession) {
-    localStorage.setItem(this.storageKey, JSON.stringify(session));
+    if (typeof window !== 'undefined') {
+      try { localStorage.setItem(this.storageKey, JSON.stringify(session)); } catch {}
+    }
   }
 
   onAuthStateChange(callback: (event: 'SIGNED_IN' | 'SIGNED_OUT', session: MockSession | null) => void) {
@@ -82,8 +87,11 @@ class MockAuthService {
       callback(session ? 'SIGNED_IN' : 'SIGNED_OUT', session);
     };
 
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleStorage);
+      return () => window.removeEventListener('storage', handleStorage);
+    }
+    return () => {};
   }
 }
 

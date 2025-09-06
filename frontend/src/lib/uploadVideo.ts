@@ -16,6 +16,7 @@ export async function uploadVideo(file: File, userId: string): Promise<string> {
   const fileName = `${userId}/${Date.now()}-${file.name}`
   const filePath = `exercise-videos/${fileName}`
 
+  if (!supabase) throw new Error('Storage not configured')
   const { data, error } = await supabase.storage
     .from('videos')
     .upload(filePath, file, {
@@ -27,5 +28,9 @@ export async function uploadVideo(file: File, userId: string): Promise<string> {
     throw error
   }
 
-  return data.path
+  const { data: pub } = await supabase.storage
+    .from('videos')
+    .getPublicUrl(filePath)
+
+  return pub.publicUrl
 } 

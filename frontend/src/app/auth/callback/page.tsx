@@ -11,6 +11,10 @@ export default function AuthCallback() {
     const handleCallback = async () => {
       try {
         // Exchange the code for a session
+        if (!supabase) {
+          router.push('/auth/signin?error=unconfigured')
+          return
+        }
         const { error } = await supabase.auth.exchangeCodeForSession(window.location.href)
         
         if (error) {

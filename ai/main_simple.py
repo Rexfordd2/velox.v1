@@ -6,11 +6,13 @@ import uvicorn
 from datetime import datetime
 import os
 from dotenv import load_dotenv
+from config import get_settings
 import uuid
 import random
 
-# Load environment variables
+# Load environment variables and validated settings (fail fast on error)
 load_dotenv()
+settings = get_settings()
 
 app = FastAPI(
     title="Velox AI Backend (Simplified)",
@@ -18,13 +20,17 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS
+# Configure CORS based on validated env
+allowed_origins = settings.ai_allowed_origins
+if settings.environment == "production" and not allowed_origins:
+    raise RuntimeError("AI_ALLOWED_ORIGINS must be set in production")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=allowed_origins if allowed_origins else (["*"] if settings.environment != "production" else []),
+    allow_credentials=settings.ai_allow_credentials,
+    allow_methods=settings.ai_allow_methods,
+    allow_headers=settings.ai_allow_headers,
 )
 
 # Models

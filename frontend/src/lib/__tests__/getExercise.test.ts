@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import '../../test/mocks/supabase';
 import { getExercise } from '../getExercise';
-import { createClient } from '@supabase/supabase-js';
+import { setMockTableData, setMockTableError, resetSupabaseMock } from '../../test/mocks/supabase';
 
 // Mock environment variables
 vi.mock('process', () => ({
@@ -10,16 +11,7 @@ vi.mock('process', () => ({
   }
 }));
 
-// Mock Supabase client
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(),
-      eq: vi.fn(),
-      single: vi.fn()
-    }))
-  }))
-}));
+// Use shared mocked supabase client from test/mocks/supabase
 
 describe('getExercise', () => {
   const mockExercise = {
@@ -34,44 +26,25 @@ describe('getExercise', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetSupabaseMock();
   });
 
   it('should successfully fetch an exercise', async () => {
-    const mockResponse = { data: mockExercise, error: null };
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue(mockResponse)
-    });
+    setMockTableData('exercises', [mockExercise]);
 
     const result = await getExercise(1);
 
     expect(result).toEqual(mockExercise);
-    expect(supabase.from).toHaveBeenCalledWith('exercises');
   });
 
   it('should handle fetch errors', async () => {
     const mockError = new Error('Fetch failed');
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockRejectedValue(mockError)
-    });
-
+    setMockTableError('exercises', mockError);
     await expect(getExercise(1)).rejects.toThrow('Fetch failed');
   });
 
   it('should handle non-existent exercise', async () => {
-    const mockResponse = { data: null, error: null };
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue(mockResponse)
-    });
-
+    setMockTableData('exercises', []);
     await expect(getExercise(999)).rejects.toThrow('Exercise not found');
   });
 }); 

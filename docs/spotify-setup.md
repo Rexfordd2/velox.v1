@@ -21,6 +21,18 @@ This guide will help you set up Spotify integration for the Velox Game Mode feat
    - For production: `https://yourdomain.com/auth/spotify/callback`
 3. Save the settings
 
+### Required Scopes
+
+Grant the following Spotify scopes to enable playback control and user profile access:
+
+- `user-read-playback-state`
+- `user-modify-playback-state`
+- `user-read-currently-playing`
+- `streaming`
+- `app-remote-control`
+- `user-read-email`
+- `user-read-private`
+
 ## 3. Get Your Credentials
 
 1. In your app dashboard, you'll see:
@@ -82,7 +94,8 @@ For production, update the redirect URI accordingly.
 The app requests these Spotify permissions:
 - Read currently playing track
 - Read playback state
-- Read recently played tracks
-- Access user profile
+- Control playback (play, pause, seek, volume)
+- Streaming via Web Playback SDK
+- Access user email and profile
 
 No data is stored permanently - only used for the current game session. 

@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useExercises } from '../../lib/hooks/useExercises';
+import { useExercisesInfinite } from '../../lib/hooks/useExercises';
+import LoadingState from '@/components/ui/LoadingState';
+import EmptyState from '@/components/ui/EmptyState';
+import ErrorState from '@/components/ui/ErrorState';
 import { Exercise } from '../../lib/types/exercise';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
@@ -53,10 +56,12 @@ export function ExerciseLibrary() {
   const [showFilters, setShowFilters] = useState(false);
 
   // Fetch exercises
-  const { exercises, isLoading } = useExercises({
+  const { exercises, isLoading, isError, mutate, fetchNextPage, hasMore, isFetchingNextPage } = useExercisesInfinite({
     search: searchQuery,
     difficulty: selectedDifficulty !== 'all' ? selectedDifficulty : undefined,
-    category_id: selectedCategory !== 'all' ? parseInt(selectedCategory) : undefined
+    category_id: selectedCategory !== 'all' ? parseInt(selectedCategory) : undefined,
+    sortBy: 'name',
+    sortDir: 'asc',
   });
 
   // Filter exercises based on selected criteria
@@ -204,15 +209,23 @@ export function ExerciseLibrary() {
 
         {/* Exercise Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
-          {isLoading ? (
-            // Loading skeletons
-            Array.from({ length: 6 }).map((_, i) => (
-              <div
-                key={i}
-                className="bg-gray-800 rounded-lg p-6 animate-pulse h-48"
+          {isLoading && Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="bg-gray-800 rounded-lg p-6 animate-pulse h-48" />
+          ))}
+          {isError && (
+            <div className="col-span-full">
+              <ErrorState onRetry={() => void mutate()} />
+            </div>
+          )}
+          {!isLoading && !isError && (!filteredExercises || filteredExercises.length === 0) && (
+            <div className="col-span-full">
+              <EmptyState
+                title="No exercises match your filters"
+                description="Try clearing some filters or searching for something else."
               />
-            ))
-          ) : filteredExercises?.map(exercise => (
+            </div>
+          )}
+          {!isLoading && !isError && filteredExercises?.map(exercise => (
             <motion.div
               key={exercise.id}
               layout
@@ -258,6 +271,11 @@ export function ExerciseLibrary() {
               </div>
             </motion.div>
           ))}
+        </div>
+        <div className="col-span-full flex justify-center">
+          <Button onClick={() => void fetchNextPage()} disabled={!hasMore || isFetchingNextPage}>
+            {isFetchingNextPage ? 'Loading…' : hasMore ? 'Load more' : 'No more'}
+          </Button>
         </div>
       </Tabs>
     </div>

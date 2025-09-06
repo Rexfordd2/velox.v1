@@ -28,15 +28,13 @@ export interface ExerciseQuery {
   difficulty?: Difficulty;
   primary_muscle?: string;
   category_id?: number;
-  page?: number;
+  cursor?: string;
   limit?: number;
+  sortBy?: 'created_at' | 'name' | 'difficulty' | 'primary_muscle';
+  sortDir?: 'asc' | 'desc';
 }
 
 export interface ExerciseResponse {
-  exercises: Exercise[];
-  pagination: {
-    total: number;
-    page: number;
-    limit: number;
-  };
+  items: Exercise[];
+  nextCursor?: string;
 } 

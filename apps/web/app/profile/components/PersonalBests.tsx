@@ -3,9 +3,12 @@
 import { trpc } from '@/app/_trpc/client';
 import { format } from 'date-fns';
 import { Trophy, TrendingUp, Timer, Dumbbell } from 'lucide-react';
+import LoadingState from '@/components/ui/LoadingState';
+import EmptyState from '@/components/ui/EmptyState';
+import ErrorState from '@/components/ui/ErrorState';
 
 export function PersonalBests() {
-  const { data: personalBests, isLoading } = trpc.workouts.getPersonalBests.useQuery();
+  const { data: personalBests, isLoading, error, refetch } = trpc.workouts.getPersonalBests.useQuery();
 
   const renderMetricCard = (
     title: string,
@@ -28,17 +31,10 @@ export function PersonalBests() {
     </div>
   );
 
-  if (isLoading) {
-    return <div className="text-center py-4">Loading personal bests...</div>;
-  }
+  if (isLoading) return <LoadingState lines={3} />;
+  if (error) return <ErrorState onRetry={() => void refetch()} />;
 
-  if (!personalBests) {
-    return (
-      <div className="text-center py-4 text-gray-500">
-        Complete your first workout to see personal bests!
-      </div>
-    );
-  }
+  if (!personalBests) return <EmptyState title="No personal bests yet" description="Complete workouts to start tracking PBs." />;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

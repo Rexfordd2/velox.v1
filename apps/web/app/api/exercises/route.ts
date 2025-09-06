@@ -12,24 +12,28 @@ export async function GET(request: Request) {
       difficulty: searchParams.get('difficulty') as 'beginner' | 'intermediate' | 'advanced' || undefined,
       primary_muscle: searchParams.get('primary_muscle') || undefined,
       category_id: searchParams.get('category_id') ? Number(searchParams.get('category_id')) : undefined,
-      page: Number(searchParams.get('page')) || 1,
-      limit: Number(searchParams.get('limit')) || 10
+      cursor: searchParams.get('cursor') || undefined,
+      limit: Number(searchParams.get('limit')) || 24,
+      sortBy: (searchParams.get('sortBy') as 'created_at' | 'name' | 'difficulty' | 'primary_muscle') || 'created_at',
+      sortDir: (searchParams.get('sortDir') as 'asc' | 'desc') || 'desc',
     };
 
     const validatedQuery = exerciseQuerySchema.parse(query);
     const supabase = createRouteHandlerClient({ cookies });
 
-    let exercisesQuery = supabase
-      .from('exercises')
-      .select(`
+    const selectWithJoin = `
         *,
-        exercise_to_category (
+        exercise_to_category ${validatedQuery.category_id ? '!inner' : ''} (
           category:exercise_categories (
             id,
             name
           )
         )
-      `)
+      `;
+
+    let exercisesQuery = supabase
+      .from('exercises')
+      .select(selectWithJoin)
       .is('deleted_at', null);
 
     // Apply filters
@@ -43,29 +47,35 @@ export async function GET(request: Request) {
       exercisesQuery = exercisesQuery.eq('primary_muscle', validatedQuery.primary_muscle);
     }
     if (validatedQuery.category_id) {
-      exercisesQuery = exercisesQuery.contains('exercise_to_category.category_id', [validatedQuery.category_id]);
+      exercisesQuery = exercisesQuery.eq('exercise_to_category.category_id', validatedQuery.category_id);
     }
 
-    // Apply pagination
-    const from = (validatedQuery.page - 1) * validatedQuery.limit;
-    const to = from + validatedQuery.limit - 1;
+    // Sorting
+    exercisesQuery = exercisesQuery.order(validatedQuery.sortBy, { ascending: validatedQuery.sortDir === 'asc' });
 
-    const { data: exercises, error, count } = await exercisesQuery
-      .range(from, to)
-      .order('name');
+    // Cursor pagination (by created_at fallback if sortBy isn't created_at)
+    if (validatedQuery.cursor) {
+      if (validatedQuery.sortDir === 'asc') {
+        exercisesQuery = exercisesQuery.gt('created_at', validatedQuery.cursor);
+      } else {
+        exercisesQuery = exercisesQuery.lt('created_at', validatedQuery.cursor);
+      }
+    }
+
+    const { data: rows, error } = await exercisesQuery.limit(validatedQuery.limit + 1);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({
-      exercises,
-      pagination: {
-        total: count,
-        page: validatedQuery.page,
-        limit: validatedQuery.limit
-      }
-    });
+    const items = rows ?? [];
+    let nextCursor: string | undefined = undefined;
+    if (items.length > validatedQuery.limit) {
+      const next: any = items.pop();
+      nextCursor = (next && (next.created_at as string | undefined)) || undefined;
+    }
+
+    return NextResponse.json({ items, nextCursor });
   } catch (error) {
     console.error('Error fetching exercises:', error);
     return NextResponse.json(

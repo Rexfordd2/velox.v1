@@ -118,9 +118,7 @@ export default function ExerciseDetailPage({ params }: { params: { slug: string 
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <h1 className="text-2xl font-bold mb-4">Exercise not found</h1>
-        <Button variant="link" href="/exercises">
-          Back to Exercise Library
-        </Button>
+        <a href="/exercises" className="text-purple-400 hover:underline">Back to Exercise Library</a>
       </div>
     );
   }

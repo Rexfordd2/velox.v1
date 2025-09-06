@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import '../../test/mocks/supabase';
 import { getUserProgress } from '../getUserProgress';
 import { createClient } from '@supabase/supabase-js';
+import { setMockTableData, setMockTableError, resetSupabaseMock, setMockCurrentUserId } from '../../test/mocks/supabase';
 
 // Mock environment variables
 vi.mock('process', () => ({
@@ -10,16 +12,7 @@ vi.mock('process', () => ({
   }
 }));
 
-// Mock Supabase client
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(),
-      eq: vi.fn(),
-      order: vi.fn()
-    }))
-  }))
-}));
+// Use shared mocked supabase client from test/mocks/supabase
 
 describe('getUserProgress', () => {
   const mockSessions = [
@@ -54,16 +47,12 @@ describe('getUserProgress', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetSupabaseMock();
+    setMockCurrentUserId('test-user');
   });
 
   it('should successfully calculate user progress', async () => {
-    const mockResponse = { data: mockSessions, error: null };
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockResolvedValue(mockResponse)
-    });
+    setMockTableData('sessions', mockSessions);
 
     const result = await getUserProgress('test-user', 1);
 
@@ -79,31 +68,17 @@ describe('getUserProgress', () => {
         date: '2024-01-03T00:00:00Z'
       }
     });
-    expect(supabase.from).toHaveBeenCalledWith('sessions');
   });
 
   it('should handle fetch errors', async () => {
     const mockError = new Error('Fetch failed');
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockRejectedValue(mockError)
-    });
-
+    setMockTableError('sessions', mockError);
     await expect(getUserProgress('test-user', 1)).rejects.toThrow('Fetch failed');
   });
 
   it('should return zero progress for new exercises', async () => {
-    const mockResponse = { data: [], error: null };
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockResolvedValue(mockResponse)
-    });
-
-    const result = await getUserProgress('new-user', 1);
+    setMockTableData('sessions', []);
+    const result = await getUserProgress('test-user', 1);
     expect(result).toEqual({
       exercise_id: 1,
       total_sessions: 0,
@@ -145,14 +120,7 @@ describe('getUserProgress', () => {
       }
     ];
 
-    const mockResponse = { data: decliningSessions, error: null };
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockResolvedValue(mockResponse)
-    });
-
+    setMockTableData('sessions', decliningSessions);
     const result = await getUserProgress('test-user', 1);
     expect(result.progress_trend).toBe('declining');
   });

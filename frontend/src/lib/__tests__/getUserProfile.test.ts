@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import '../../test/mocks/supabase';
 import { getUserProfile } from '../getUserProfile';
-import { createClient } from '@supabase/supabase-js';
 
 // Mock environment variables
 vi.mock('process', () => ({
@@ -10,16 +10,7 @@ vi.mock('process', () => ({
   }
 }));
 
-// Mock Supabase client
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(),
-      eq: vi.fn(),
-      single: vi.fn()
-    }))
-  }))
-}));
+// Shared Supabase mock is imported above
 
 describe('getUserProfile', () => {
   const mockProfile = {
@@ -35,41 +26,25 @@ describe('getUserProfile', () => {
   });
 
   it('should successfully fetch user profile', async () => {
-    const mockResponse = { data: mockProfile, error: null };
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue(mockResponse)
-    });
-
-    const result = await getUserProfile('test-user');
+    const { setMockTableData, setStrictRLS } = await import('../../test/mocks/supabase');
+    setStrictRLS(false);
+    setMockTableData('profiles', [mockProfile] as any);
+    const result = await getUserProfile(mockProfile.username);
 
     expect(result).toEqual(mockProfile);
-    expect(supabase.from).toHaveBeenCalledWith('profiles');
   });
 
   it('should handle fetch errors', async () => {
-    const mockError = new Error('Fetch failed');
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockRejectedValue(mockError)
-    });
-
+    // Simulate error via shared mock setter
+    const { setMockTableError } = await import('../../test/mocks/supabase');
+    setMockTableError('profiles', new Error('Fetch failed'));
     await expect(getUserProfile('test-user')).rejects.toThrow('Fetch failed');
   });
 
   it('should handle non-existent profile', async () => {
-    const mockResponse = { data: null, error: null };
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue(mockResponse)
-    });
-
+    const { setMockTableData, setMockTableError } = await import('../../test/mocks/supabase');
+    setMockTableData('profiles', []);
+    setMockTableError('profiles', null);
     await expect(getUserProfile('non-existent')).rejects.toThrow('Profile not found');
   });
 }); 

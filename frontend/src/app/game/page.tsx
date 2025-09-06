@@ -103,6 +103,7 @@ export default function GameMode() {
         id: 'squat-001',
         name: 'Barbell Squat',
         description: 'A compound exercise targeting legs and core',
+        category: 'lower',
         difficulty: 'intermediate',
         muscle_groups: ['quadriceps', 'hamstrings', 'glutes', 'core']
       },
@@ -110,6 +111,7 @@ export default function GameMode() {
         id: 'deadlift-001',
         name: 'Deadlift',
         description: 'A fundamental strength movement',
+        category: 'lower',
         difficulty: 'intermediate',
         muscle_groups: ['back', 'hamstrings', 'glutes']
       },
@@ -117,6 +119,7 @@ export default function GameMode() {
         id: 'bench-001',
         name: 'Bench Press',
         description: 'Classic upper body strength exercise',
+        category: 'upper',
         difficulty: 'intermediate',
         muscle_groups: ['chest', 'shoulders', 'triceps']
       }

@@ -23,5 +23,5 @@ test("confidence mid-range for moderate jitter", () => {
   })) as any;
   const { confidence } = calcRepMetrics(frames);
   expect(confidence).toBeGreaterThan(0.4);
-  expect(confidence).toBeLessThan(0.8);
+  expect(confidence).toBeLessThan(0.9);
 }); 

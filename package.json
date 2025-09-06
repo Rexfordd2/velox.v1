@@ -15,22 +15,38 @@
     "build": "pnpm --filter velox-frontend build",
     "start": "pnpm --filter velox-frontend start",
     "mobile:start": "cd apps/mobile && npx expo start --clear",
-    "test": "vitest",
+    "test": "vitest run --config vitest.phase1.config.ts --reporter verbose",
     "test:phase1": "vitest run --config vitest.phase1.config.ts --reporter verbose",
     "test:e2e": "pnpm --filter velox-frontend cypress run",
     "test:coverage": "vitest run --coverage",
     "lint": "pnpm --filter velox-frontend lint",
-    "seed:exercises": "pnpm --filter velox-frontend seed:exercises"
+    "seed:exercises": "pnpm --filter velox-frontend seed:exercises",
+    "seed": "tsx scripts/seed.ts",
+    "spec:install": "npx playwright install --with-deps",
+    "spec:run": "tsx packages/spec-check/src/run.ts",
+    "spec:e2e": "playwright test",
+    "spec:all": "pnpm -s spec:install && pnpm -s spec:e2e && pnpm -s spec:run",
+    "validate:velocity": "vitest -t velocity",
+    "validate:music": "vitest -t bpmSync",
+    "validate:progress": "vitest -t progress",
+    "validate:all": "pnpm -w test && pnpm -w lint && pnpm -w build"
   },
   "devDependencies": {
     "@jest/globals": "^30.0.4",
+    "@playwright/test": "^1.46.0",
     "@tensorflow/tfjs": "4.11.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^14.3.1",
     "@testing-library/react-hooks": "^8.0.1",
+    "@testing-library/user-event": "^14.6.1",
     "@types/jest": "^30.0.0",
     "@types/jsdom": "^21.1.7",
     "@vitest/coverage-v8": "^1.3.1",
     "expo": "~49.0.0",
     "supabase": "^1.226.4",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "tsx": "^4.7.0",
     "vitest": "^1.3.1"
   },
   "dependencies": {
@@ -42,6 +58,13 @@
   },
   "resolutions": {
     "react": "18.2.0",
+    "react-dom": "18.2.0",
     "react-native": "0.72.6"
+  },
+  "pnpm": {
+    "overrides": {
+      "react": "18.2.0",
+      "react-dom": "18.2.0"
+    }
   }
 }

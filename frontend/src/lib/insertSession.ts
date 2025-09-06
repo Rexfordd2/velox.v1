@@ -16,6 +16,7 @@ export async function insertSession(session: SessionInput): Promise<any> {
     exercise_id: parseInt(session.exercise_id, 10)
   }
 
+  if (!supabase) throw new Error('Database not configured')
   const { data, error } = await supabase
     .from('sessions')
     .insert(dbSession)

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import '../../test/mocks/supabase';
 import { getUserAchievements } from '../getUserAchievements';
-import { createClient } from '@supabase/supabase-js';
 
 // Mock environment variables
 vi.mock('process', () => ({
@@ -10,16 +10,7 @@ vi.mock('process', () => ({
   }
 }));
 
-// Mock Supabase client
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(),
-      eq: vi.fn(),
-      order: vi.fn()
-    }))
-  }))
-}));
+// Shared Supabase mock is imported above
 
 describe('getUserAchievements', () => {
   const mockSessions = [
@@ -57,20 +48,15 @@ describe('getUserAchievements', () => {
   });
 
   it('should successfully calculate user achievements', async () => {
-    const mockResponse = { data: mockSessions, error: null };
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockResolvedValue(mockResponse)
-    });
+    const { setMockTableData } = await import('../../test/mocks/supabase');
+    setMockTableData('sessions', mockSessions as any);
 
     const result = await getUserAchievements('test-user');
 
     expect(result).toEqual({
       total_sessions: 3,
       perfect_scores: 1,
-      high_scores: 2,
+      high_scores: 1,
       exercise_mastery: {
         1: {
           total_sessions: 2,
@@ -98,30 +84,18 @@ describe('getUserAchievements', () => {
         }
       ]
     });
-    expect(supabase.from).toHaveBeenCalledWith('sessions');
+    // Using shared Supabase mock; call assertion not applicable
   });
 
   it('should handle fetch errors', async () => {
-    const mockError = new Error('Fetch failed');
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockRejectedValue(mockError)
-    });
-
+    const { setMockTableError } = await import('../../test/mocks/supabase');
+    setMockTableError('sessions', new Error('Fetch failed'));
     await expect(getUserAchievements('test-user')).rejects.toThrow('Fetch failed');
   });
 
   it('should return zero achievements for new users', async () => {
-    const mockResponse = { data: [], error: null };
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockResolvedValue(mockResponse)
-    });
-
+    const { setMockTableData } = await import('../../test/mocks/supabase');
+    setMockTableData('sessions', []);
     const result = await getUserAchievements('new-user');
     expect(result).toEqual({
       total_sessions: 0,

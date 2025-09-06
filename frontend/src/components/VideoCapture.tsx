@@ -5,13 +5,15 @@ import { useState, useRef, useEffect } from 'react'
 interface VideoCaptureProps {
   onCapture: (file: File) => void
   exerciseName?: string
+  autoConfirm?: boolean
+  initialMode?: CaptureMode
 }
 
 type CaptureMode = 'camera' | 'upload' | null
 type CameraFacing = 'user' | 'environment'
 
-export function VideoCapture({ onCapture, exerciseName }: VideoCaptureProps) {
-  const [mode, setMode] = useState<CaptureMode>(null)
+export function VideoCapture({ onCapture, exerciseName, autoConfirm = false, initialMode = null }: VideoCaptureProps) {
+  const [mode, setMode] = useState<CaptureMode>(initialMode)
   const [isRecording, setIsRecording] = useState(false)
   const [isCameraReady, setIsCameraReady] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
@@ -57,6 +59,13 @@ export function VideoCapture({ onCapture, exerciseName }: VideoCaptureProps) {
       return () => URL.revokeObjectURL(url)
     }
   }, [previewFile])
+
+  useEffect(() => {
+    if (autoConfirm && previewFile) {
+      onCapture(previewFile)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoConfirm, previewFile])
 
   const startCamera = async (facing: CameraFacing = cameraFacing) => {
     try {
@@ -137,6 +146,9 @@ export function VideoCapture({ onCapture, exerciseName }: VideoCaptureProps) {
       const blob = new Blob(chunksRef.current, { type: 'video/webm' })
       const file = new File([blob], `exercise-${Date.now()}.webm`, { type: 'video/webm' })
       setPreviewFile(file)
+      if (autoConfirm) {
+        onCapture(file)
+      }
       stopCamera()
       
       // Clear timer

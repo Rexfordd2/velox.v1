@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuthContext } from '@/contexts/AuthContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { ExercisePicker, Exercise } from '@/components/ExercisePicker'
 import { VideoCapture } from '@/components/VideoCapture'
@@ -17,7 +17,7 @@ type RecordingStep = 'select' | 'record' | 'analyze' | 'review' | 'saving'
 
 export default function RecordExercise() {
   const router = useRouter()
-  const { user } = useAuth()
+  const { user } = useAuthContext()
   const [step, setStep] = useState<RecordingStep>('select')
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)

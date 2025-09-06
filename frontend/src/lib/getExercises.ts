@@ -2,6 +2,13 @@ import { supabase } from './supabase'
 import { Exercise } from '@/components/ExercisePicker'
 
 export async function getExercises(): Promise<Exercise[]> {
+  if (!supabase) {
+    // fallback mock list when supabase is not configured
+    return [
+      { id: 'squat', name: 'Squat', description: 'Lower body', category: 'lower', difficulty: 'intermediate' },
+      { id: 'bench', name: 'Bench Press', description: 'Upper body', category: 'upper', difficulty: 'intermediate' },
+    ]
+  }
   const { data, error } = await supabase
     .from('exercises')
     .select('*')

@@ -133,6 +133,8 @@ class ErrorReportingService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // Propagate request id if present for correlation on server
+          'x-request-id': (document.cookie.match(/(?:^|; )velox_rid=([^;]+)/)?.[1] ?? ''),
         },
         body: JSON.stringify(errorContext),
       })

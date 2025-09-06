@@ -1,6 +1,13 @@
-import cv2
+from __future__ import annotations
+try:
+    import cv2  # type: ignore
+except Exception:  # pragma: no cover
+    cv2 = None  # type: ignore
 import numpy as np
-import mediapipe as mp
+try:
+    import mediapipe as mp  # type: ignore
+except Exception:  # pragma: no cover
+    mp = None  # type: ignore
 import time
 from typing import List, Optional, Tuple, Dict
 from dataclasses import dataclass
@@ -66,14 +73,17 @@ class ProcessingMetrics:
 
 class ImageProcessor:
     def __init__(self):
-        self.clahe = cv2.createCLAHE(
-            clipLimit=IMAGE_PROCESSING_CONFIG['contrast_limit'],
-            tileGridSize=IMAGE_PROCESSING_CONFIG['grid_size']
-        )
+        if cv2 is None:
+            self.clahe = None
+        else:
+            self.clahe = cv2.createCLAHE(
+                clipLimit=IMAGE_PROCESSING_CONFIG['contrast_limit'],
+                tileGridSize=IMAGE_PROCESSING_CONFIG['grid_size']
+            )
         self.frame_cache = deque(maxlen=IMAGE_PROCESSING_CONFIG['cache_size'])
         
         # Initialize GPU context if available
-        if IMAGE_PROCESSING_CONFIG['enable_gpu']:
+        if IMAGE_PROCESSING_CONFIG['enable_gpu'] and cv2 is not None:
             try:
                 cv2.cuda.setDevice(0)
                 self.use_gpu = True
@@ -89,6 +99,9 @@ class ImageProcessor:
             if frame is None or frame.size == 0:
                 raise InvalidFrameError("Invalid frame data")
             
+            if cv2 is None:
+                return frame
+
             # Resize if needed
             h, w = frame.shape[:2]
             if max(h, w) > IMAGE_PROCESSING_CONFIG['max_dimension']:
@@ -117,6 +130,8 @@ class ImageProcessor:
     
     def _needs_enhancement(self, frame: np.ndarray) -> bool:
         """Check if frame needs brightness/contrast enhancement."""
+        if cv2 is None:
+            return False
         # Convert to LAB color space
         lab = cv2.cvtColor(frame, cv2.COLOR_RGB2LAB)
         l_channel = lab[:,:,0]
@@ -127,12 +142,16 @@ class ImageProcessor:
     
     def _enhance_frame(self, frame: np.ndarray) -> np.ndarray:
         """Enhance frame quality."""
+        if cv2 is None:
+            return frame
         if self.use_gpu:
             return self._enhance_frame_gpu(frame)
         return self._enhance_frame_cpu(frame)
     
     def _enhance_frame_cpu(self, frame: np.ndarray) -> np.ndarray:
         """CPU-based frame enhancement."""
+        if cv2 is None or self.clahe is None:
+            return frame
         # Convert to LAB color space
         lab = cv2.cvtColor(frame, cv2.COLOR_RGB2LAB)
         l, a, b = cv2.split(lab)
@@ -148,6 +167,8 @@ class ImageProcessor:
     
     def _enhance_frame_gpu(self, frame: np.ndarray) -> np.ndarray:
         """GPU-accelerated frame enhancement."""
+        if cv2 is None:
+            return frame
         try:
             # Upload to GPU
             gpu_frame = cv2.cuda_GpuMat(frame)
@@ -183,16 +204,17 @@ class PoseDetector:
                  min_detection_confidence: float = 0.7,
                  min_tracking_confidence: float = 0.7,
                  enable_frame_skipping: bool = True,
-                 frame_buffer_size: int = 5):
+                 frame_buffer_size: int = 5,
+                 calibration: Optional[Dict] = None):
         """Initialize pose detector with optimized settings."""
         try:
-            self.mp_pose = mp.solutions.pose
-            self.pose = self.mp_pose.Pose(
-                static_image_mode=False,
-                model_complexity=model_complexity,
-                min_detection_confidence=min_detection_confidence,
-                min_tracking_confidence=min_tracking_confidence
-            )
+            self.mp_pose = mp.solutions.pose if mp is not None else None
+            self.pose = None if self.mp_pose is None else self.mp_pose.Pose(
+                    static_image_mode=False,
+                    model_complexity=model_complexity,
+                    min_detection_confidence=min_detection_confidence,
+                    min_tracking_confidence=min_tracking_confidence
+                )
             
             self.enable_frame_skipping = enable_frame_skipping
             self.frame_buffer = deque(maxlen=frame_buffer_size)
@@ -200,10 +222,18 @@ class PoseDetector:
             self.last_successful_pose = None
             self.consecutive_failures = 0
             self.image_processor = ImageProcessor()
+            # Optional calibration info: {'pixelsPerMeter': float, 'homography': [...], 'tiltDeg': float}
+            self.calibration: Optional[Dict] = calibration if isinstance(calibration, dict) else None
             
         except Exception as e:
             logging.error(f"Failed to initialize MediaPipe Pose: {str(e)}")
             raise PoseDetectionError(f"Pose detector initialization failed: {str(e)}")
+
+    def set_calibration(self, calibration: Optional[Dict]):
+        """Update calibration parameters used during normalization/blending."""
+        if calibration is not None and not isinstance(calibration, dict):
+            raise ValueError("calibration must be dict or None")
+        self.calibration = calibration
     
     def validate_frame(self, frame: np.ndarray) -> None:
         """Validate frame data before processing."""
@@ -236,6 +266,8 @@ class PoseDetector:
             start_time = time.time()
             
             # Detect pose
+            if self.pose is None:
+                raise PoseDetectionError("Pose model not available")
             results = self.pose.process(processed_frame)
             
             # Check processing time
@@ -504,3 +536,1315 @@ class PoseDetector:
         angle = np.arccos(cosine_angle)
         
         return np.degrees(angle) 
+
+# ------------------------
+# Pose normalization helpers
+# ------------------------
+
+def _extract_point(landmarks: Dict, key: int, fallback_key: str = None) -> Optional[np.ndarray]:
+    """
+    Extract a 2D point [x, y] and optional confidence from a landmarks dict that
+    may be keyed by integer indices (MediaPipe) or strings.
+    """
+    if landmarks is None:
+        return None
+    value = None
+    if key in landmarks:
+        value = landmarks[key]
+    elif fallback_key and fallback_key in landmarks:
+        value = landmarks[fallback_key]
+    if value is None:
+        return None
+    # Support dicts with x/y or arrays [x, y, (z), (visibility)]
+    if isinstance(value, dict):
+        x = float(value.get('x', 0.0))
+        y = float(value.get('y', 0.0))
+        v = float(value.get('visibility', value.get('confidence', 1.0)))
+        return np.array([x, y, v], dtype=float)
+    arr = np.array(value, dtype=float)
+    if arr.size == 0:
+        return None
+    if arr.size == 1:
+        return np.array([arr[0], 0.0, 1.0], dtype=float)
+    if arr.size == 2:
+        return np.array([arr[0], arr[1], 1.0], dtype=float)
+    # [x, y, visibility, ...]
+    return np.array([arr[0], arr[1], arr[2] if arr.size > 2 else 1.0], dtype=float)
+
+
+def normalize_pose(landmarks: Dict) -> Dict:
+    """
+    Center at pelvis midpoint (hip center), rotate so body axis (shoulder→hip)
+    aligns with vertical, and scale by shoulder width. Returns a new landmarks dict
+    with normalized x,y; preserves other fields if present.
+
+    Landmarks may be keyed by MediaPipe indices or by string names.
+    """
+    # MediaPipe indices
+    LEFT_SHOULDER, RIGHT_SHOULDER = 11, 12
+    LEFT_HIP, RIGHT_HIP = 23, 24
+
+    l_sh = _extract_point(landmarks, LEFT_SHOULDER, 'left_shoulder')
+    r_sh = _extract_point(landmarks, RIGHT_SHOULDER, 'right_shoulder')
+    l_hip = _extract_point(landmarks, LEFT_HIP, 'left_hip')
+    r_hip = _extract_point(landmarks, RIGHT_HIP, 'right_hip')
+
+    if any(p is None for p in [l_sh, r_sh, l_hip, r_hip]):
+        return landmarks
+
+    shoulder_center = (l_sh[:2] + r_sh[:2]) / 2.0
+    hip_center = (l_hip[:2] + r_hip[:2]) / 2.0
+    pelvis = hip_center
+
+    # Body axis vector from shoulders to hips
+    axis = hip_center - shoulder_center
+    axis_norm = np.linalg.norm(axis)
+    if axis_norm < 1e-6:
+        return landmarks
+
+    # Rotation to align axis with +Y (image coordinates typically downwards, but canonical vertical)
+    # Angle between axis and +Y is atan2(ax, ay); rotate by -that to align to Y
+    angle = np.arctan2(axis[0], axis[1])
+    cos_t = np.cos(-angle)
+    sin_t = np.sin(-angle)
+    R = np.array([[cos_t, -sin_t], [sin_t, cos_t]])
+
+    # Scale by shoulder width
+    shoulder_width = np.linalg.norm(l_sh[:2] - r_sh[:2])
+    if shoulder_width < 1e-6:
+        return landmarks
+    scale = 1.0 / shoulder_width
+
+    def _transform_point(val):
+        if isinstance(val, dict):
+            x = float(val.get('x', 0.0))
+            y = float(val.get('y', 0.0))
+            rest = {k: v for k, v in val.items() if k not in ('x', 'y')}
+            p = np.array([x, y])
+            p = (R @ (p - pelvis)) * scale
+            return {**rest, 'x': float(p[0]), 'y': float(p[1])}
+        arr = np.array(val, dtype=float)
+        if arr.size < 2:
+            return val
+        p = (R @ (arr[:2] - pelvis)) * scale
+        out = arr.copy()
+        out[0], out[1] = p[0], p[1]
+        return out
+
+    normalized = {}
+    for k, v in landmarks.items():
+        normalized[k] = _transform_point(v)
+    return normalized
+
+
+def multiAngleBlend(poses_from_views: List[Dict]) -> Dict:
+    """
+    Merge multiple pose landmark dicts by joint-confidence weighting.
+    For each joint, compute weighted average of (x,y) using visibility/confidence.
+    """
+    if not poses_from_views:
+        return {}
+
+    # Collect all keys
+    all_keys = set()
+    for pose in poses_from_views:
+        all_keys.update(pose.keys())
+
+    blended: Dict = {}
+    for key in all_keys:
+        sum_x = 0.0
+        sum_y = 0.0
+        sum_w = 0.0
+        vis_list = []
+        last_sample = None
+        for pose in poses_from_views:
+            if key not in pose:
+                continue
+            val = pose[key]
+            last_sample = val
+            if isinstance(val, dict):
+                x = float(val.get('x', 0.0))
+                y = float(val.get('y', 0.0))
+                w = float(val.get('visibility', val.get('confidence', 1.0)))
+                sum_x += w * x
+                sum_y += w * y
+                sum_w += w
+                vis_list.append(w)
+            else:
+                arr = np.array(val, dtype=float)
+                if arr.size >= 2:
+                    x, y = float(arr[0]), float(arr[1])
+                    w = float(arr[2]) if arr.size > 2 else 1.0
+                    sum_x += w * x
+                    sum_y += w * y
+                    sum_w += w
+                    vis_list.append(w)
+        if sum_w > 0:
+            x_blend = sum_x / sum_w
+            y_blend = sum_y / sum_w
+            avg_vis = float(np.mean(vis_list)) if vis_list else 1.0
+            if isinstance(last_sample, dict):
+                out = dict(last_sample)
+                out['x'] = x_blend
+                out['y'] = y_blend
+                if 'visibility' in out:
+                    out['visibility'] = avg_vis
+                blended[key] = out
+            else:
+                arr = np.array(last_sample, dtype=float)
+                if arr.size >= 2:
+                    arr_out = arr.copy()
+                    arr_out[0] = x_blend
+                    arr_out[1] = y_blend
+                    if arr_out.size > 2:
+                        arr_out[2] = avg_vis
+                    blended[key] = arr_out
+        elif last_sample is not None:
+            blended[key] = last_sample
+    return blended
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+def _results_to_landmarks_dict(results_landmarks) -> Dict:
+    """Convert MediaPipe landmarks to a landmarks dict keyed by index with x,y,visibility."""
+    if results_landmarks is None:
+        return {}
+    out: Dict = {}
+    try:
+        for idx, lm in enumerate(results_landmarks.landmark):
+            out[idx] = { 'x': float(lm.x), 'y': float(lm.y), 'visibility': float(getattr(lm, 'visibility', 1.0)) }
+    except Exception:
+        # Already in dict form
+        return results_landmarks
+    return out
+
+def _avg_visibility(landmarks: Dict, keys: List[int]) -> float:
+    vals = []
+    for k in keys:
+        v = landmarks.get(k)
+        if isinstance(v, dict):
+            vals.append(float(v.get('visibility', 1.0)))
+    return float(np.mean(vals)) if vals else 0.0
+
+class PoseDetector(PoseDetector):  # extend with multi-view utilities
+    def detect_pose_multi(self, frames: List[np.ndarray], frame_number: int) -> Tuple[Dict, float]:
+        """
+        Detect pose from multiple synchronized frames (views), normalize per-view,
+        and blend landmarks using confidence-weighted averaging.
+        Returns blended landmarks dict and aggregated confidence.
+        """
+        if not frames:
+            return {}, 0.0
+        per_view: List[Dict] = []
+        confidences: List[float] = []
+        for i, f in enumerate(frames):
+            try:
+                lm, conf = self.detect_pose(f, frame_number + i)
+                confidences.append(conf)
+                if lm is None:
+                    continue
+                lm_dict = _results_to_landmarks_dict(lm)
+                # Confidence gate for normalization
+                vis = _avg_visibility(lm_dict, [11,12,23,24])  # shoulders/hips
+                if vis >= MIN_CONFIDENCE_THRESHOLD:
+                    lm_dict = normalize_pose(lm_dict)
+                per_view.append(lm_dict)
+            except Exception as e:
+                logger.warning(f"Multi-view detection failed on view {i}: {e}")
+                continue
+        if not per_view:
+            return {}, 0.0
+        blended = multiAngleBlend(per_view)
+        agg_conf = float(np.mean(confidences)) if confidences else 0.0
+        return blended, agg_conf

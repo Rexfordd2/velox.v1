@@ -20,8 +20,11 @@ export const exerciseQuerySchema = z.object({
   difficulty: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
   primary_muscle: z.string().optional(),
   category_id: z.number().optional(),
-  page: z.number().min(1).default(1),
-  limit: z.number().min(1).max(100).default(10)
+  // Cursor pagination
+  cursor: z.string().optional(),
+  limit: z.number().min(1).max(100).default(24),
+  sortBy: z.enum(['created_at', 'name', 'difficulty', 'primary_muscle']).default('created_at'),
+  sortDir: z.enum(['asc', 'desc']).default('desc'),
 });
 
 export type ExerciseQuery = z.infer<typeof exerciseQuerySchema>; 

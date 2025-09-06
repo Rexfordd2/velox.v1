@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { createTRPCRouter, protectedProcedure } from '../trpc';
 import { MusicService } from '../types/enums';
+import { getDefaultUnits } from '../../../../packages/core/src/units';
 
 // Input validation schemas
 const updateProfileSchema = z.object({
@@ -167,6 +168,122 @@ export const profileRouter = createTRPCRouter({
       }
 
       return { success: true };
+    }),
+
+  // Core onboarding and settings for units/coaching/strictness + privacy prefs
+  getCoreSettings: protectedProcedure
+    .query(async ({ ctx }) => {
+      const { supabase, user } = ctx;
+
+      // Fetch from profiles
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('units, coaching_style, strictness')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        // Not found is acceptable if profile row doesn't exist yet
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to load profile settings',
+          cause: profileError,
+        });
+      }
+
+      // Fetch privacy from user_settings
+      const { data: settings, error: settingsError } = await supabase
+        .from('user_settings')
+        .select('privacy_settings')
+        .eq('user_id', user.id)
+        .single();
+
+      if (settingsError && settingsError.code !== 'PGRST116') {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to load privacy settings',
+          cause: settingsError,
+        });
+      }
+
+      const defaultUnits = getDefaultUnits('');
+      return {
+        units: profile?.units ?? { mass: defaultUnits.mass, velocity: defaultUnits.velocity },
+        coachingStyle: profile?.coaching_style ?? 'encouraging',
+        strictness: profile?.strictness ?? 'balanced',
+        privacy: {
+          cloudVideo: settings?.privacy_settings?.cloudVideo ?? false,
+          metricsOnly: settings?.privacy_settings?.metricsOnly ?? true,
+          defaultAudience: settings?.privacy_settings?.defaultAudience ?? 'me',
+          shareProgress: settings?.privacy_settings?.shareProgress ?? false,
+          publicProfile: settings?.privacy_settings?.publicProfile ?? false,
+        },
+      } as const;
+    }),
+
+  updateCoreSettings: protectedProcedure
+    .input(z.object({
+      units: z.object({
+        mass: z.enum(['kg', 'lb']),
+        velocity: z.enum(['m/s', 'ft/s']),
+      }),
+      coachingStyle: z.enum(['direct', 'technical', 'encouraging']),
+      strictness: z.enum(['balanced', 'strict', 'elite']),
+      privacy: z.object({
+        cloudVideo: z.boolean(),
+        metricsOnly: z.boolean(),
+        defaultAudience: z.enum(['me', 'coach', 'leaderboard']),
+        shareProgress: z.boolean().optional(),
+        publicProfile: z.boolean().optional(),
+      }),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { supabase, user } = ctx;
+
+      // Update profiles core fields
+      const { error: profErr } = await supabase
+        .from('profiles')
+        .update({
+          units: input.units,
+          coaching_style: input.coachingStyle,
+          strictness: input.strictness,
+        })
+        .eq('id', user.id);
+
+      if (profErr) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to update profile core settings',
+          cause: profErr,
+        });
+      }
+
+      // Upsert privacy settings
+      const { error: setErr } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user.id,
+          privacy_settings: {
+            cloudVideo: input.privacy.cloudVideo,
+            metricsOnly: input.privacy.metricsOnly,
+            defaultAudience: input.privacy.defaultAudience,
+            shareProgress: input.privacy.shareProgress ?? false,
+            publicProfile: input.privacy.publicProfile ?? false,
+          },
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id',
+        });
+
+      if (setErr) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to update privacy settings',
+          cause: setErr,
+        });
+      }
+
+      return { success: true } as const;
     }),
 
   getSavedWorkouts: protectedProcedure

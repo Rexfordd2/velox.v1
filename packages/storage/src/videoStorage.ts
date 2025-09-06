@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
 
-const supabase = createClient(
+const defaultSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
@@ -18,7 +18,8 @@ const URL_EXPIRY_DAYS = 7;
  */
 export async function uploadVideo(
   userId: string,
-  file: File | Blob
+  file: File | Blob,
+  client: typeof defaultSupabase = defaultSupabase
 ): Promise<{ url: string; path: string }> {
   // Generate a unique filename
   const date = new Date().toISOString().split('T')[0];
@@ -26,7 +27,7 @@ export async function uploadVideo(
   const path = `${userId}/${date}/${filename}`;
   
   // Upload the file
-  const { error: uploadError } = await supabase.storage
+  const { error: uploadError } = await client.storage
     .from(BUCKET_NAME)
     .upload(path, file, {
       cacheControl: '3600',
@@ -38,7 +39,7 @@ export async function uploadVideo(
   }
   
   // Get a signed URL
-  const { data: { signedUrl }, error: urlError } = await supabase.storage
+  const { data: { signedUrl }, error: urlError } = await client.storage
     .from(BUCKET_NAME)
     .createSignedUrl(path, URL_EXPIRY_DAYS * 24 * 60 * 60);
     
@@ -57,8 +58,8 @@ export async function uploadVideo(
  * 
  * @param path - The storage path of the video to delete
  */
-export async function deleteVideo(path: string): Promise<void> {
-  const { error } = await supabase.storage
+export async function deleteVideo(path: string, client: typeof defaultSupabase = defaultSupabase): Promise<void> {
+  const { error } = await client.storage
     .from(BUCKET_NAME)
     .remove([path]);
     

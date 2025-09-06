@@ -1,38 +1,37 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { buildLeaderboard, LeaderboardScope } from '../leaderboard';
 
 describe('buildLeaderboard', () => {
-  it('should return global leaderboard for movement', async () => {
-    // TODO: Implement test with mock data
-    // const leaderboard = await buildLeaderboard({
-    //   movementId: 'test-movement-id',
-    //   window: 'week',
-    //   scope: 'global',
-    //   userId: 'test-user-id',
-    // });
-    // expect(leaderboard).toHaveLength(100);
+  beforeEach(() => { vi.resetModules() })
+
+  it('returns rows for global scope with week window', async () => {
+    vi.doMock('../supabase-client', () => ({
+      supabase: { rpc: vi.fn(async () => ({ data: [{ rank: 1, user_id: 'u1', username: 'alice', best_score: 123 }], error: null })) }
+    }))
+    const mod = await import('../leaderboard')
+    const data = await mod.buildLeaderboard({ movementId: 'squat', window: 'week', scope: 'global', userId: 'me' })
+    expect(data[0]).toEqual({ rank: 1, user_id: 'u1', username: 'alice', best_score: 123 })
   });
 
-  it('should return friends leaderboard for movement', async () => {
-    // TODO: Implement test with mock data
-    // const leaderboard = await buildLeaderboard({
-    //   movementId: 'test-movement-id',
-    //   window: 'week',
-    //   scope: 'friends',
-    //   userId: 'test-user-id',
-    // });
-    // expect(leaderboard.every(entry => 
-    //   friendIds.includes(entry.user_id)
-    // )).toBe(true);
+  it('uses friends scope and passes userId param', async () => {
+    const rpc = vi.fn(async () => ({ data: [], error: null }))
+    vi.doMock('../supabase-client', () => ({ supabase: { rpc } }))
+    const mod = await import('../leaderboard')
+    await mod.buildLeaderboard({ movementId: 'bench', window: 'month', scope: 'friends', userId: 'me' })
+    expect(rpc).toHaveBeenCalled()
   });
 
-  it('should handle different time windows correctly', async () => {
-    // TODO: Implement test with mock data
-    // Test both 'week' and 'month' windows
+  it('handles empty results', async () => {
+    vi.doMock('../supabase-client', () => ({ supabase: { rpc: vi.fn(async () => ({ data: [], error: null })) } }))
+    const mod = await import('../leaderboard')
+    const data = await mod.buildLeaderboard({ movementId: 'deadlift', window: 'week', scope: 'global', userId: 'me' })
+    expect(Array.isArray(data)).toBe(true)
+    expect(data).toHaveLength(0)
   });
 
-  it('should return empty array when no scores exist', async () => {
-    // TODO: Implement test with mock data
-    // Test edge case with no scores
+  it('propagates errors from supabase', async () => {
+    vi.doMock('../supabase-client', () => ({ supabase: { rpc: vi.fn(async () => ({ data: null, error: new Error('boom') })) } }))
+    const mod = await import('../leaderboard')
+    await expect(mod.buildLeaderboard({ movementId: 'squat', window: 'week', scope: 'global', userId: 'me' })).rejects.toBeTruthy()
   });
 }); 

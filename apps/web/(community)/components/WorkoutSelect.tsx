@@ -1,7 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { trpc } from '@/lib/trpc';
+import { trpc } from '@/app/_trpc/client';
+import LoadingState from '@/components/ui/LoadingState';
+import EmptyState from '@/components/ui/EmptyState';
+import ErrorState from '@/components/ui/ErrorState';
 import {
   Select,
   SelectContent,
@@ -16,11 +19,11 @@ interface WorkoutSelectProps {
 }
 
 export function WorkoutSelect({ value, onChange }: WorkoutSelectProps) {
-  const { data: workouts, isLoading } = trpc.workouts.getRecent.useQuery();
+  const { data: workouts, isLoading, error, refetch } = trpc.workouts.getRecent.useQuery();
 
-  if (isLoading) {
-    return <div>Loading workouts...</div>;
-  }
+  if (isLoading) return <LoadingState variant="inline" />;
+  if (error) return <ErrorState onRetry={() => void refetch()} />;
+  if (!workouts || workouts.length === 0) return <EmptyState title="No recent workouts" description="Create a workout to see it here." />;
 
   return (
     <Select value={value} onValueChange={onChange}>
@@ -30,7 +33,7 @@ export function WorkoutSelect({ value, onChange }: WorkoutSelectProps) {
       <SelectContent>
         {workouts?.map((workout) => (
           <SelectItem key={workout.id} value={workout.id}>
-            {workout.title}
+            {String((workout as any).title ?? (workout as any).exercise_type ?? 'Workout')}
           </SelectItem>
         ))}
       </SelectContent>

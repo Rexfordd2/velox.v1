@@ -1,0 +1,16 @@
+{
+  "name": "@velox/score",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^1.3.1"
+  }
+}
+
+

@@ -41,7 +41,7 @@ export function withAdminAuth(handler: Function) {
   };
 }
 
-export function useAdminAuth() {
+export async function useAdminAuth() {
   const supabase = createRouteHandlerClient({ cookies });
   const { data: { session } } = await supabase.auth.getSession();
 

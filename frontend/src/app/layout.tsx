@@ -4,6 +4,7 @@ import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { QueryProvider } from '@/contexts/QueryProvider'
 import Link from 'next/link'
+import ObsProvider from './providers/ObsProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -22,6 +23,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProvider>
           <QueryProvider>
+            <ObsProvider>
             <header className="bg-gray-900 border-b border-gray-800">
               <nav className="max-w-7xl mx-auto px-4 py-4 flex gap-4 text-sm">
                 <Link href="/">Home</Link>
@@ -34,6 +36,7 @@ export default function RootLayout({
             <main className="min-h-screen bg-gray-900 text-white">
               {children}
             </main>
+            </ObsProvider>
           </QueryProvider>
         </AuthProvider>
       </body>

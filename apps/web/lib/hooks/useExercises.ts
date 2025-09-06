@@ -1,4 +1,4 @@
-import useSWR from 'swr';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { Exercise, ExerciseQuery, ExerciseResponse } from '../types/exercise';
 
 interface UseExercisesOptions {
@@ -8,7 +8,11 @@ interface UseExercisesOptions {
   primary_muscle?: string;
 }
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch');
+  return res.json();
+};
 
 export function useExercises(options: UseExercisesOptions = {}) {
   const { search, difficulty, category_id, primary_muscle } = options;
@@ -20,30 +24,70 @@ export function useExercises(options: UseExercisesOptions = {}) {
   if (category_id) queryParams.set('category_id', category_id.toString());
   if (primary_muscle) queryParams.set('primary_muscle', primary_muscle);
 
-  const { data, error, isLoading, mutate } = useSWR<Exercise[]>(
-    `/api/exercises?${queryParams.toString()}`,
-    fetcher
-  );
+  const { data, error, isLoading, refetch } = useQuery<ExerciseResponse, Error>({
+    queryKey: ['exercises', Object.fromEntries(queryParams.entries())],
+    queryFn: () => fetcher(`/api/exercises?${queryParams.toString()}`),
+    placeholderData: (prev) => prev,
+  });
 
   return {
-    exercises: data,
+    exercises: data?.items,
     isLoading,
     isError: error,
-    mutate
+    mutate: refetch,
   };
 }
 
 export function useExercise(slug: string) {
-  const { data, error, isLoading, mutate } = useSWR<Exercise>(
-    `/api/exercises/${slug}`,
-    fetcher
-  );
+  const { data, error, isLoading, refetch } = useQuery<Exercise, Error>({
+    queryKey: ['exercise', slug],
+    queryFn: () => fetcher(`/api/exercises/${slug}`),
+    enabled: Boolean(slug),
+    placeholderData: (prev) => prev,
+  });
 
   return {
     exercise: data,
     isLoading,
     isError: error,
-    mutate
+    mutate: refetch,
+  };
+}
+
+export function useExercisesInfinite(options: UseExercisesOptions & { limit?: number; sortBy?: string; sortDir?: 'asc' | 'desc' } = {}) {
+  const { search, difficulty, category_id, primary_muscle, limit = 24, sortBy = 'created_at', sortDir = 'desc' } = options;
+
+  const buildParams = (cursor?: string) => {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (difficulty) params.set('difficulty', difficulty);
+    if (category_id) params.set('category_id', String(category_id));
+    if (primary_muscle) params.set('primary_muscle', primary_muscle);
+    params.set('limit', String(limit));
+    params.set('sortBy', sortBy);
+    params.set('sortDir', sortDir);
+    if (cursor) params.set('cursor', cursor);
+    return params;
+  };
+
+  const query = useInfiniteQuery<ExerciseResponse, Error>({
+    queryKey: ['exercises-infinite', { search, difficulty, category_id, primary_muscle, limit, sortBy, sortDir }],
+    queryFn: ({ pageParam }) => fetcher(`/api/exercises?${buildParams(pageParam as string | undefined).toString()}`),
+    getNextPageParam: (lastPage) => lastPage?.nextCursor,
+    initialPageParam: undefined,
+  });
+
+  const items = (query.data?.pages ?? []).flatMap((p) => p.items);
+  const hasMore = Boolean(query.data?.pages && query.data.pages.length > 0 && query.data.pages[query.data.pages.length - 1]?.nextCursor);
+
+  return {
+    exercises: items,
+    isLoading: query.isLoading,
+    isError: query.error,
+    mutate: query.refetch,
+    fetchNextPage: query.fetchNextPage,
+    hasMore,
+    isFetchingNextPage: query.isFetchingNextPage,
   };
 }
 

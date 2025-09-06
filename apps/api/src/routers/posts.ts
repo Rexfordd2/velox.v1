@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
+import { createTRPCRouter, protectedProcedure, requireOwnership } from '../trpc';
 import { revalidateTag } from '../utils/cache';
 
 const DEFAULT_LIMIT = 10;
@@ -21,6 +21,13 @@ const createCommentSchema = z.object({
   postId: z.string().uuid(),
   content: z.string().min(1).max(500),
 });
+
+const updatePostSchema = z.object({
+  postId: z.string().uuid(),
+  content: z.string().min(1).max(500),
+});
+
+const deleteByIdSchema = z.object({ id: z.string().uuid() });
 
 export const postsRouter = createTRPCRouter({
   getInfiniteFeed: protectedProcedure
@@ -166,5 +173,95 @@ export const postsRouter = createTRPCRouter({
       await revalidateTag('feed');
 
       return comment;
+    }),
+
+  update: protectedProcedure
+    .input(updatePostSchema)
+    .use(requireOwnership(async (supabase, input: z.infer<typeof updatePostSchema>) => {
+      const { data: existing } = await supabase
+        .from('posts')
+        .select('id, user_id')
+        .eq('id', input.postId)
+        .single();
+      return existing ? { ownerId: existing.user_id } : null;
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { supabase, user } = ctx;
+
+      const { data: updated, error } = await supabase
+        .from('posts')
+        .update({ content: input.content })
+        .eq('id', input.postId)
+        .select(`
+          *,
+          user:users (
+            id,
+            username,
+            avatar_url
+          ),
+          workout:workouts (
+            id,
+            title,
+            description
+          )
+        `)
+        .single();
+
+      if (error) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to update post', cause: error });
+      }
+
+      await revalidateTag('feed');
+      return updated;
+    }),
+
+  delete: protectedProcedure
+    .input(deleteByIdSchema)
+    .use(requireOwnership(async (supabase, input: z.infer<typeof deleteByIdSchema>) => {
+      const { data: existing } = await supabase
+        .from('posts')
+        .select('id, user_id')
+        .eq('id', input.id)
+        .single();
+      return existing ? { ownerId: existing.user_id } : null;
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { supabase, user } = ctx;
+
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', input.id);
+
+      if (error) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to delete post', cause: error });
+      }
+      await revalidateTag('feed');
+      return { success: true } as const;
+    }),
+
+  deleteComment: protectedProcedure
+    .input(deleteByIdSchema)
+    .use(requireOwnership(async (supabase, input: z.infer<typeof deleteByIdSchema>) => {
+      const { data: comment } = await supabase
+        .from('comments')
+        .select('id, user_id')
+        .eq('id', input.id)
+        .single();
+      return comment ? { ownerId: comment.user_id } : null;
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { supabase, user } = ctx;
+
+      const { error } = await supabase
+        .from('comments')
+        .delete()
+        .eq('id', input.id);
+
+      if (error) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to delete comment', cause: error });
+      }
+      await revalidateTag('feed');
+      return { success: true } as const;
     }),
 }); 

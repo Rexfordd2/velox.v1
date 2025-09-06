@@ -1,0 +1,20 @@
+name: Spec Check
+on: [push, workflow_dispatch]
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm i -g pnpm
+      - run: pnpm i
+      - run: pnpm spec:install
+      - run: pnpm spec:e2e
+      - run: pnpm spec:run
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spec-report
+          path: spec-report
+
+

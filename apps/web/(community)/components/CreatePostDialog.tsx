@@ -4,7 +4,9 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { trpc } from '@/lib/trpc';
+import { trpc } from '@/app/_trpc/client';
+import { useToast } from '@/components/ui/use-toast';
+import { applyFieldErrors } from '@/lib/errors';
 import {
   Dialog,
   DialogContent,
@@ -37,9 +39,42 @@ interface CreatePostDialogProps {
 
 export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) {
   const utils = trpc.useUtils();
+  const { toast } = useToast();
   const createPost = trpc.posts.create.useMutation({
-    onSuccess: () => {
+    onMutate: async (variables) => {
+      await utils.posts.getInfiniteFeed.cancel();
+      const prev = utils.posts.getInfiniteFeed.getInfiniteData({});
+
+      const optimisticPost = {
+        id: `temp-${Date.now()}`,
+        content: (variables as any)?.content ?? '',
+        created_at: new Date().toISOString(),
+        user: { id: 'me', username: 'You', avatar_url: '' },
+        workout: undefined,
+        _count: { comments: 0 },
+      } as any;
+
+      utils.posts.getInfiniteFeed.setInfiniteData({}, (data) => {
+        if (!data) return data;
+        const [first, ...rest] = data.pages;
+        const newFirst = { ...first, posts: [optimisticPost, ...first.posts] };
+        return { ...data, pages: [newFirst, ...rest] } as typeof data;
+      });
+
+      return { prev };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.prev) {
+        utils.posts.getInfiniteFeed.setInfiniteData({}, context.prev);
+      }
+      applyFieldErrors(form.setError, error);
+      const description = (error as any)?.message ?? 'Request failed';
+      toast({ title: 'Failed to post', description, variant: 'destructive' });
+    },
+    onSettled: () => {
       utils.posts.getInfiniteFeed.invalidate();
+    },
+    onSuccess: () => {
       form.reset();
       onOpenChange(false);
     },
@@ -102,9 +137,9 @@ export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) 
             <Button
               type="submit"
               className="w-full"
-              disabled={createPost.isLoading}
+              disabled={createPost.status === 'pending'}
             >
-              {createPost.isLoading ? 'Posting...' : 'Post'}
+              {createPost.status === 'pending' ? 'Posting...' : 'Post'}
             </Button>
           </form>
         </Form>

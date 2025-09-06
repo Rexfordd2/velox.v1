@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, UploadFile, File
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict
@@ -12,12 +12,18 @@ import shutil
 import cv2
 import numpy as np
 from collections import defaultdict
+import logging
+import time
+from fastapi.responses import JSONResponse
+from fastapi.exception_handlers import http_exception_handler
 
 from services.pose_detector import PoseDetector
 from services.movement_analyzer import MovementAnalyzer, ExerciseType
+from config import get_settings
 
-# Load environment variables
+# Load environment variables and validated settings (fail fast on error)
 load_dotenv()
+settings = get_settings()
 
 app = FastAPI(
     title="Velox AI Backend",
@@ -25,14 +31,78 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS
+# Configure CORS based on validated env
+allowed_origins = settings.ai_allowed_origins
+if settings.environment == "production" and not allowed_origins:
+    raise RuntimeError("AI_ALLOWED_ORIGINS must be set in production")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=allowed_origins if allowed_origins else (["*"] if settings.environment != "production" else []),
+    allow_credentials=settings.ai_allow_credentials,
+    allow_methods=settings.ai_allow_methods,
+    allow_headers=settings.ai_allow_headers,
 )
+
+# Configure structured logging
+logging.basicConfig(level=logging.INFO, format='%(message)s')
+logger = logging.getLogger("velox-ai")
+
+PII_KEYS = {"email", "e_mail", "password", "token", "authorization", "cookie", "ssn", "phone", "phoneNumber", "userEmail"}
+
+def mask_value(value):
+    if value is None:
+        return None
+    if isinstance(value, str):
+        if len(value) <= 4:
+            return "***"
+        return value[:2] + "***" + value[-2:]
+    if isinstance(value, (int, float, bool)):
+        return value
+    if isinstance(value, list):
+        return [mask_value(v) for v in value]
+    if isinstance(value, dict):
+        return {k: (mask_value(v) if (k.lower() in PII_KEYS or 'email' in k.lower() or 'token' in k.lower()) else mask_value(v) if isinstance(v, (dict, list)) else v) for k, v in value.items()}
+    return "***"
+
+def log_json(level: str, message: str, **ctx):
+    try:
+        import json
+        line = json.dumps({
+            "level": level,
+            "time": datetime.utcnow().isoformat(),
+            "message": message,
+            **mask_value(ctx),
+        })
+    except Exception:
+        line = f"{level.upper()} {message}"
+    getattr(logger, level if level in ("info", "warning", "error", "debug") else "info")(line)
+
+@app.middleware("http")
+async def add_request_id_and_logging(request: Request, call_next):
+    start = time.perf_counter()
+    request_id = request.headers.get("x-request-id") or request.headers.get("x-trace-id") or str(uuid.uuid4())
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        duration = int((time.perf_counter() - start) * 1000)
+        log_json("error", "unhandled_server_error", requestId=request_id, path=str(request.url.path), method=request.method, durationMs=duration, error=str(exc))
+        raise
+    duration = int((time.perf_counter() - start) * 1000)
+    response.headers["x-request-id"] = request_id
+    response.headers["x-trace-id"] = request_id
+    try:
+        client_ip = request.client.host if request.client else None
+    except Exception:
+        client_ip = None
+    log_json("info", "request_completed", requestId=request_id, path=str(request.url.path), method=request.method, status=response.status_code, durationMs=duration, ip=client_ip)
+    return response
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    request_id = request.headers.get("x-request-id") or request.headers.get("x-trace-id") or str(uuid.uuid4())
+    log_json("error", "unhandled_exception", requestId=request_id, path=str(request.url.path), method=request.method, error=str(exc))
+    return JSONResponse(status_code=500, content={"detail": "internal_error", "request_id": request_id})
 
 # Initialize services with optimized settings
 pose_detector = PoseDetector(
@@ -146,7 +216,8 @@ async def analyze_pose(
     except Exception as e:
         if exercise_type:
             performance_stats[exercise_type]['failure_rate'] += 1
-        raise HTTPException(status_code=500, detail=str(e))
+        log_json("error", "analyze_pose_error", error=str(e), exerciseType=exercise_type)
+        raise HTTPException(status_code=500, detail="internal_error")
 
 @app.get("/performance/metrics")
 async def get_performance_metrics(exercise_type: Optional[str] = None):

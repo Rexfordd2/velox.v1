@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/components/ui/use-toast';
 
 interface PostCardProps {
   post: {
@@ -34,11 +35,40 @@ export function PostCard({ post, onChallenge }: PostCardProps) {
   const [isCommenting, setIsCommenting] = useState(false);
   const [comment, setComment] = useState('');
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const utils = trpc.useUtils();
   const createComment = trpc.posts.comment.useMutation({
-    onSuccess: () => {
+    onMutate: async (variables) => {
+      await utils.posts.getInfiniteFeed.cancel();
+      const prev = utils.posts.getInfiniteFeed.getInfiniteData({});
+
+      utils.posts.getInfiniteFeed.setInfiniteData({}, (data) => {
+        if (!data) return data;
+        const newPages = data.pages.map((page) => ({
+          ...page,
+          posts: page.posts.map((p) =>
+            p.id === (variables as any).postId
+              ? { ...p, _count: { comments: (p._count?.comments ?? 0) + 1 } }
+              : p
+          ),
+        }));
+        return { ...data, pages: newPages } as typeof data;
+      });
+
+      return { prev };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.prev) {
+        utils.posts.getInfiniteFeed.setInfiniteData({}, context.prev);
+      }
+      const description = (error as any)?.message ?? 'Request failed';
+      toast({ title: 'Failed to comment', description, variant: 'destructive' });
+    },
+    onSettled: () => {
       utils.posts.getInfiniteFeed.invalidate();
+    },
+    onSuccess: () => {
       setComment('');
       setIsCommenting(false);
     },
@@ -107,7 +137,7 @@ export function PostCard({ post, onChallenge }: PostCardProps) {
               />
               <Button
                 onClick={handleComment}
-                disabled={createComment.isLoading}
+                disabled={createComment.status === 'pending'}
               >
                 Post
               </Button>

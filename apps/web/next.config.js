@@ -1,36 +1,32 @@
 /** @type {import('next').NextConfig} */
+const webpack = require('webpack');
+
+const experimentalConfig = {
+  // keep minimal experimental flags for stability in dev/test
+  optimizePackageImports: [
+    '@tensorflow/tfjs',
+    '@mediapipe/pose',
+    'three',
+    'lodash',
+    '@material-ui/core',
+    '@material-ui/icons'
+  ],
+  // modularizeImports not supported in this Next version when using Babel; remove for stability
+  // http2 not required in dev
+};
+
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  transpilePackages: ['@velox/obs'],
   
   // Optimize bundle size
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
-  
+
   // Enable module/chunk optimization
-  experimental: {
-    optimizeCss: true,
-    optimizePackageImports: [
-      '@tensorflow/tfjs',
-      '@mediapipe/pose',
-      'three',
-      'lodash',
-      '@material-ui/core',
-      '@material-ui/icons'
-    ],
-    modularizeImports: {
-      '@material-ui/core': {
-        transform: '@material-ui/core/{{member}}',
-      },
-      '@material-ui/icons': {
-        transform: '@material-ui/icons/{{member}}',
-      },
-      'lodash': {
-        transform: 'lodash/{{member}}',
-      }
-    }
-  },
+  experimental: experimentalConfig,
 
   // Configure webpack for optimizations
   webpack: (config, { dev, isServer }) => {
@@ -39,14 +35,7 @@ const nextConfig = {
       // Enable scope hoisting
       config.optimization.concatenateModules = true;
 
-      // Minimize CSS
-      config.optimization.minimizer.push(
-        new CssMinimizerPlugin({
-          minimizerOptions: {
-            preset: ['advanced'],
-          },
-        })
-      );
+      // CSS minimization is handled by Next/SWC; no extra plugin needed
 
       // Tree shake moment.js locales
       config.plugins.push(
@@ -97,11 +86,7 @@ const nextConfig = {
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
   },
 
-  // Enable HTTP/2 server push
-  experimental: {
-    ...nextConfig.experimental,
-    http2: true,
-  },
+  // experimental config already includes http2
 
   // Configure headers for better caching
   async headers() {

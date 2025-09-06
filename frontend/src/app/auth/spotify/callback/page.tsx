@@ -3,28 +3,25 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { spotifyClient } from '@/lib/spotify'
+import { toast } from 'sonner'
 
 export default function SpotifyCallback() {
   const router = useRouter()
 
   useEffect(() => {
-    // Get the hash from the URL
-    const hash = window.location.hash
-    
-    if (hash) {
-      const success = spotifyClient.handleCallback(hash)
-      
-      if (success) {
-        // Redirect to game mode or previous page
-        const returnTo = sessionStorage.getItem('spotify_return_to') || '/game'
-        sessionStorage.removeItem('spotify_return_to')
-        router.push(returnTo)
+    const run = async () => {
+      const ok = await spotifyClient.exchangeCodeForTokens(window.location.href)
+      const returnTo = sessionStorage.getItem('spotify_return_to') || '/game'
+      sessionStorage.removeItem('spotify_return_to')
+      if (ok) {
+        try { toast?.success?.('Spotify connected') } catch {}
+        router.replace(returnTo)
       } else {
-        router.push('/game?error=spotify_auth_failed')
+        try { toast?.error?.('Spotify authentication failed') } catch {}
+        router.replace(returnTo + '?error=spotify_auth_failed')
       }
-    } else {
-      router.push('/game?error=no_spotify_token')
     }
+    run()
   }, [router])
 
   return (

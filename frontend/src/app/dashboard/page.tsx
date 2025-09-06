@@ -7,6 +7,8 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import { getUserSessions } from '@/lib/getUserSessions'
 import { supabase } from '@/lib/supabase'
 import { CircularProgress } from '@/components/CircularProgress'
+import TrendsSparkline from '@/components/TrendsSparkline'
+import { getFormTrends } from '@/lib/getUserProgress'
 
 export default function Dashboard() {
   const { user, signOut } = useAuthContext()
@@ -15,10 +17,15 @@ export default function Dashboard() {
   const [recentSessions, setRecentSessions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [averageScore, setAverageScore] = useState<number | null>(null)
+  const [sparkData, setSparkData] = useState<{ date: string, value: number | null }[]>([])
 
   useEffect(() => {
     if (user) {
       loadRecentSessions()
+      // Load sparkline for a default exercise (e.g., 'squat')
+      getFormTrends('squat').then((res) => {
+        setSparkData(res.daily.map((d: any) => ({ date: d.date, value: d.avg })))
+      }).catch(() => {})
     }
   }, [user])
 
@@ -163,6 +170,9 @@ export default function Dashboard() {
                   <p className="text-gray-400 mt-2">
                     Based on {recentSessions.filter(s => s.score).length} analyzed sessions
                   </p>
+                  <div className="mt-4 flex justify-center">
+                    <TrendsSparkline data={sparkData} />
+                  </div>
                   <div className="mt-4 flex justify-center gap-2">
                     <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">90%+ Excellent</span>
                     <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">70%+ Good</span>

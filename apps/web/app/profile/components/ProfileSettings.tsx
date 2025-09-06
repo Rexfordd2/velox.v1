@@ -15,15 +15,22 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Switch } from '@/components/ui/switch';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+// Simple switch fallback
+function Switch({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={checked}
+      onClick={() => onCheckedChange(!checked)}
+      className={`inline-flex h-6 w-10 items-center rounded-full ${checked ? 'bg-green-500' : 'bg-gray-400'}`}
+    >
+      <span className={`h-5 w-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-4' : 'translate-x-0'}`} />
+    </button>
+  );
+}
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
+import { applyFieldErrors } from '@/lib/errors';
 
 const settingsSchema = z.object({
   notifications: z.object({
@@ -56,7 +63,7 @@ export function ProfileSettings({ initialData }: ProfileSettingsProps) {
     defaultValues: initialData,
   });
 
-  const { mutate: updateSettings, isLoading } = trpc.profile.updateSettings.useMutation({
+  const { mutate: updateSettings, isPending } = trpc.profile.updateSettings.useMutation({
     onSuccess: () => {
       toast({
         title: 'Settings updated',
@@ -65,9 +72,10 @@ export function ProfileSettings({ initialData }: ProfileSettingsProps) {
       utils.profile.getMe.invalidate();
     },
     onError: (error) => {
+      applyFieldErrors(form.setError, error);
       toast({
         title: 'Error',
-        description: error.message,
+        description: (error as any)?.data?.message || (error as any)?.message || 'Failed to update',
         variant: 'destructive',
       });
     },
@@ -260,8 +268,8 @@ export function ProfileSettings({ initialData }: ProfileSettingsProps) {
           </div>
         </Card>
 
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? 'Saving...' : 'Save Settings'}
+        <Button type="submit" disabled={isPending}>
+          {isPending ? 'Saving...' : 'Save Settings'}
         </Button>
       </form>
     </Form>

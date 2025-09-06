@@ -7,6 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
+import LoadingState from '@/components/ui/LoadingState';
+import EmptyState from '@/components/ui/EmptyState';
+import ErrorState from '@/components/ui/ErrorState';
 import { SavedWorkouts } from './components/SavedWorkouts';
 import { ProfileSettings } from './components/ProfileSettings';
 import { WorkoutHistory } from './components/WorkoutHistory';
@@ -16,23 +19,12 @@ import { PersonalBests } from './components/PersonalBests';
 export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState('overview');
   
-  const { data: profile, isLoading } = trpc.profile.getMe.useQuery();
+  const { data: profile, isLoading, error, refetch } = trpc.profile.getMe.useQuery();
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <LoadingState variant="detail" />;
+  if (error) return <ErrorState onRetry={() => void refetch()} />;
 
-  if (!profile) {
-    return (
-      <div className="p-6 text-center">
-        <p className="text-lg text-gray-500">Profile not found</p>
-      </div>
-    );
-  }
+  if (!profile) return <EmptyState title="Profile not found" description="Please check back later." />;
 
   return (
     <div className="container mx-auto py-8 px-4">

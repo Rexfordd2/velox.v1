@@ -1,11 +1,7 @@
 // Mock crypto.randomUUID() for consistent test results
-if (!global.crypto) {
-  global.crypto = {};
-}
-
-if (!global.crypto.randomUUID) {
-  global.crypto.randomUUID = () => '00000000-0000-0000-0000-000000000000';
-}
+// Provide a deterministic randomUUID
+global.crypto = global.crypto || {};
+global.crypto.randomUUID = () => '00000000-0000-0000-0000-000000000000';
 
 // Mock Date.now() to return incrementing timestamps
 let currentTimestamp = 1600000000000; // Starting timestamp

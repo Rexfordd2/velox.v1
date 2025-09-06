@@ -118,6 +118,25 @@ docker-compose -f docker-compose.ai.yml up
 4. Advanced analytics dashboard
 5. Group workout features
 
+## ✅ E2E and CI
+
+Run Playwright:
+
+```bash
+pnpm -w spec:install
+pnpm -w spec:e2e
+```
+
+Seed and auth for CI:
+
+- Provide `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` envs
+- Optionally override `ADMIN_EMAIL` and `ADMIN_PASSWORD`
+- Seed before E2E:
+
+```bash
+RUN_DB_SEED=true pnpm -w seed
+```
+
 ## 🤝 Contributing
 
 1. Fork the repository

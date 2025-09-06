@@ -27,4 +27,4 @@ export interface Session {
   videoUrl: string;
   formScore: FormScore;
   createdAt: string;
-} 
+}

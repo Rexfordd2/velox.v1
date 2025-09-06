@@ -24,8 +24,8 @@ const envSchema = z.object({
   NEXT_PUBLIC_ANALYTICS_KEY: z.string().optional(),
 
   // Redis configuration
-  UPSTASH_REDIS_URL: z.string().url(),
-  UPSTASH_REDIS_TOKEN: z.string().min(1),
+  UPSTASH_REDIS_URL: z.string().url().optional(),
+  UPSTASH_REDIS_TOKEN: z.string().min(1).optional(),
 
   // Analytics and monitoring
   NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
@@ -35,8 +35,8 @@ const envSchema = z.object({
   CORS_ALLOWED_ORIGINS: z.string().transform(str => str.split(',')),
   API_RATE_LIMIT: z.coerce.number().default(100),
   API_RATE_LIMIT_WINDOW: z.coerce.number().default(60),
-  JWT_SECRET: z.string().min(32),
-  ENCRYPTION_KEY: z.string().min(32),
+  JWT_SECRET: z.string().min(32).optional(),
+  ENCRYPTION_KEY: z.string().min(32).optional(),
 
   // Feature flags
   ENABLE_VIDEO_PROCESSING: z.boolean().optional(),

@@ -19,6 +19,7 @@ export class MusicSync {
   private startTime: number | null = null;
   private config: MusicSyncConfig;
   private isSpotifyActive = false;
+  private segmentInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(config: MusicSyncConfig = {}) {
     this.config = {
@@ -30,6 +31,25 @@ export class MusicSync {
   setTempoSegments(segments: TempoSegment[]) {
     this.tempoSegments = segments.sort((a, b) => a.startMs - b.startMs);
     this.currentSegmentIndex = 0;
+  }
+
+  // Seed from Spotify audio analysis sections
+  seedFromSpotify(tempo: number | null | undefined, sections?: { start: number; duration: number; tempo?: number }[]) {
+    const segs: TempoSegment[] = [];
+    if (sections && sections.length > 0) {
+      let t = 0;
+      for (const s of sections) {
+        const startMs = Math.round((s.start ?? t) * 1000);
+        const endMs = Math.round((s.start + s.duration) * 1000);
+        const bpm = Math.round(s.tempo ?? tempo ?? this.config.defaultBpm!);
+        segs.push({ startMs, endMs, bpm });
+        t = s.start + s.duration;
+      }
+    } else if (tempo) {
+      // Single flat tempo segment for first 10 minutes
+      segs.push({ startMs: 0, endMs: 10 * 60 * 1000, bpm: Math.round(tempo) });
+    }
+    if (segs.length) this.setTempoSegments(segs);
   }
 
   private getCurrentSegment(elapsedMs: number): TempoSegment | null {
@@ -75,6 +95,8 @@ export class MusicSync {
       onBeat: this.config.onBeat
     });
 
+    // ensure bpm is applied explicitly for predictability in tests
+    this.metronome.setBpm(initialBpm);
     this.metronome.start();
 
     // Start tempo segment tracking
@@ -86,7 +108,8 @@ export class MusicSync {
       };
 
       // Check for segment changes every 100ms
-      setInterval(checkSegment, 100);
+      if (this.segmentInterval) clearInterval(this.segmentInterval);
+      this.segmentInterval = setInterval(checkSegment, 100);
     }
   }
 
@@ -94,6 +117,10 @@ export class MusicSync {
     if (this.metronome) {
       this.metronome.stop();
       this.metronome = null;
+    }
+    if (this.segmentInterval) {
+      clearInterval(this.segmentInterval);
+      this.segmentInterval = null;
     }
     this.startTime = null;
     this.currentSegmentIndex = 0;

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import '../../test/mocks/supabase';
 import { getSession } from '../getSession';
 import { createClient } from '@supabase/supabase-js';
+import { setMockTableData, setMockTableError, resetSupabaseMock } from '../../test/mocks/supabase';
 
 // Mock environment variables
 vi.mock('process', () => ({
@@ -10,16 +12,7 @@ vi.mock('process', () => ({
   }
 }));
 
-// Mock Supabase client
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(),
-      eq: vi.fn(),
-      single: vi.fn()
-    }))
-  }))
-}));
+// Use shared mocked supabase client from test/mocks/supabase
 
 describe('getSession', () => {
   const mockSession = {
@@ -34,44 +27,25 @@ describe('getSession', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetSupabaseMock();
   });
 
   it('should successfully fetch a session', async () => {
-    const mockResponse = { data: mockSession, error: null };
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue(mockResponse)
-    });
+    setMockTableData('sessions', [mockSession]);
 
     const result = await getSession(1);
 
     expect(result).toEqual(mockSession);
-    expect(supabase.from).toHaveBeenCalledWith('sessions');
   });
 
   it('should handle fetch errors', async () => {
     const mockError = new Error('Fetch failed');
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockRejectedValue(mockError)
-    });
-
+    setMockTableError('sessions', mockError);
     await expect(getSession(1)).rejects.toThrow('Fetch failed');
   });
 
   it('should handle non-existent session', async () => {
-    const mockResponse = { data: null, error: null };
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue(mockResponse)
-    });
-
+    setMockTableData('sessions', []);
     await expect(getSession(999)).rejects.toThrow('Session not found');
   });
 }); 

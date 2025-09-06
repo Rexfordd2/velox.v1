@@ -1,18 +1,20 @@
 import { uploadVideo, deleteVideo } from '../videoStorage';
 import { createClient } from '@supabase/supabase-js';
+// Ensure env vars for Supabase are present to avoid constructor throwing
+process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost';
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'anon';
 
 // Mock Supabase client
-jest.mock('@supabase/supabase-js', () => ({
-  createClient: jest.fn(() => ({
-    storage: {
-      from: jest.fn(() => ({
-        upload: jest.fn(),
-        createSignedUrl: jest.fn(),
-        remove: jest.fn()
-      }))
-    }
-  }))
-}));
+vi.mock('@supabase/supabase-js', () => {
+  const bucket = { upload: vi.fn(), createSignedUrl: vi.fn(), remove: vi.fn() } as any;
+  return {
+    createClient: vi.fn(() => ({
+      storage: {
+        from: vi.fn(() => bucket),
+      },
+    })),
+  };
+});
 
 describe('Video Storage Service', () => {
   const mockUserId = 'test-user-123';
@@ -21,7 +23,7 @@ describe('Video Storage Service', () => {
   const mockUrl = 'https://example.com/test-video.mp4';
   
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
   
   describe('uploadVideo', () => {
@@ -34,7 +36,7 @@ describe('Video Storage Service', () => {
         error: null
       });
       
-      const result = await uploadVideo(mockUserId, mockFile);
+      const result = await uploadVideo(mockUserId, mockFile, mockSupabase as any);
       
       expect(result).toEqual({
         url: mockUrl,
@@ -50,7 +52,7 @@ describe('Video Storage Service', () => {
       const mockSupabase = createClient();
       mockSupabase.storage.from('user-videos').upload.mockResolvedValueOnce({ error: mockError });
       
-      await expect(uploadVideo(mockUserId, mockFile)).rejects.toThrow('Failed to upload video');
+      await expect(uploadVideo(mockUserId, mockFile, mockSupabase as any)).rejects.toThrow('Failed to upload video');
     });
     
     it('should throw error on URL generation failure', async () => {
@@ -61,7 +63,7 @@ describe('Video Storage Service', () => {
         error: new Error('URL generation failed')
       });
       
-      await expect(uploadVideo(mockUserId, mockFile)).rejects.toThrow('Failed to generate signed URL');
+      await expect(uploadVideo(mockUserId, mockFile, mockSupabase as any)).rejects.toThrow('Failed to generate signed URL');
     });
   });
   
@@ -70,7 +72,7 @@ describe('Video Storage Service', () => {
       const mockSupabase = createClient();
       mockSupabase.storage.from('user-videos').remove.mockResolvedValueOnce({ error: null });
       
-      await expect(deleteVideo(mockPath)).resolves.not.toThrow();
+      await expect(deleteVideo(mockPath, mockSupabase as any)).resolves.not.toThrow();
       expect(mockSupabase.storage.from('user-videos').remove).toHaveBeenCalledWith([mockPath]);
     });
     
@@ -79,7 +81,7 @@ describe('Video Storage Service', () => {
       const mockSupabase = createClient();
       mockSupabase.storage.from('user-videos').remove.mockResolvedValueOnce({ error: mockError });
       
-      await expect(deleteVideo(mockPath)).rejects.toThrow('Failed to delete video');
+      await expect(deleteVideo(mockPath, mockSupabase as any)).rejects.toThrow('Failed to delete video');
     });
   });
 }); 

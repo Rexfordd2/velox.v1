@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { uploadVideo } from '../uploadVideo';
-import { createClient } from '@supabase/supabase-js';
+const storageFromMock = vi.fn();
+vi.mock('../supabase', () => ({
+  supabase: {
+    storage: { from: (...a: any[]) => storageFromMock(...a) },
+  }
+}));
 
 // Mock environment variables
 vi.mock('process', () => ({
@@ -34,8 +39,7 @@ describe('uploadVideo', () => {
     const mockUploadResponse = { data: { path: 'videos/test-user/test.mp4' }, error: null };
     const mockPublicUrl = 'https://test.supabase.co/storage/v1/object/public/videos/test-user/test.mp4';
     
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.storage.from).mockReturnValue({
+    storageFromMock.mockReturnValue({
       upload: vi.fn().mockResolvedValue(mockUploadResponse),
       getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: mockPublicUrl } })
     });
@@ -43,13 +47,12 @@ describe('uploadVideo', () => {
     const result = await uploadVideo(mockFile, mockUserId);
 
     expect(result).toBe(mockPublicUrl);
-    expect(supabase.storage.from).toHaveBeenCalledWith('videos');
+    expect(storageFromMock).toHaveBeenCalledWith('videos');
   });
 
   it('should handle upload errors', async () => {
     const mockError = new Error('Upload failed');
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.storage.from).mockReturnValue({
+    storageFromMock.mockReturnValue({
       upload: vi.fn().mockRejectedValue(mockError),
       getPublicUrl: vi.fn()
     });

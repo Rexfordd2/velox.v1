@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createClient } from '@supabase/supabase-js';
+// Use mocked supabase client from test setup
+import { mockSupabaseClient as supabase, setStrictRLS } from '../../test/mocks/supabase';
 
 // Mock environment variables
 vi.mock('process', () => ({
@@ -10,13 +11,10 @@ vi.mock('process', () => ({
 }));
 
 describe('Security Tests', () => {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
 
   beforeEach(() => {
     vi.clearAllMocks();
+    setStrictRLS(true);
   });
 
   describe('Row Level Security', () => {

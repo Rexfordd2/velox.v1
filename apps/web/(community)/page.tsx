@@ -2,12 +2,15 @@
 
 import { useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useInView } from 'react-intersection-observer';
-import { trpc } from '@/lib/trpc';
+import { useInViewLocal as useInView } from './hooks/useInViewLocal';
+import { trpc } from '@/app/_trpc/client';
 import { Button } from '@/components/ui/button';
 import { CreatePostDialog } from './components/CreatePostDialog';
 import { PostCard } from './components/PostCard';
 import { ChallengeDialog } from './components/ChallengeDialog';
+import LoadingState from '@/components/ui/LoadingState';
+import EmptyState from '@/components/ui/EmptyState';
+import ErrorState from '@/components/ui/ErrorState';
 
 export default function CommunityPage() {
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
@@ -37,13 +40,8 @@ export default function CommunityPage() {
     fetchNextPage();
   }
 
-  if (status === 'loading') {
-    return <div>Loading...</div>;
-  }
-
-  if (status === 'error') {
-    return <div>Error loading feed</div>;
-  }
+  if (status === 'pending') return <LoadingState lines={6} />;
+  if (status === 'error') return <ErrorState onRetry={() => void fetchNextPage()} />;
 
   return (
     <div className="container max-w-4xl mx-auto py-8">
@@ -58,23 +56,27 @@ export default function CommunityPage() {
       </div>
 
       <div className="space-y-6">
-        {data.pages.map((page, i) => (
-          <div key={i} className="space-y-6">
-            {page.posts.map((post) => (
-              <PostCard
-                key={post.id}
-                post={post}
-                onChallenge={(userId, username) => {
-                  setChallengeData({
-                    isOpen: true,
-                    userId,
-                    username,
-                  });
-                }}
-              />
-            ))}
-          </div>
-        ))}
+        {data.pages.length === 0 || data.pages.every(p => p.posts.length === 0) ? (
+          <EmptyState title="No posts yet" description="Be the first to share your workout!" actionLabel="Create Post" onAction={() => setIsCreatePostOpen(true)} />
+        ) : (
+          data.pages.map((page, i) => (
+            <div key={i} className="space-y-6">
+              {page.posts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  onChallenge={(userId, username) => {
+                    setChallengeData({
+                      isOpen: true,
+                      userId,
+                      username,
+                    });
+                  }}
+                />
+              ))}
+            </div>
+          ))
+        )}
       </div>
 
       {/* Infinite scroll trigger */}

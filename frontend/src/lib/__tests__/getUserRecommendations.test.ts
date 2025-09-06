@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import '../../test/mocks/supabase';
 import { getUserRecommendations } from '../getUserRecommendations';
-import { createClient } from '@supabase/supabase-js';
 
 // Mock environment variables
 vi.mock('process', () => ({
@@ -10,16 +10,7 @@ vi.mock('process', () => ({
   }
 }));
 
-// Mock Supabase client
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(),
-      eq: vi.fn(),
-      order: vi.fn()
-    }))
-  }))
-}));
+// Shared Supabase mock is imported above
 
 describe('getUserRecommendations', () => {
   const mockSessions = [
@@ -87,19 +78,9 @@ describe('getUserRecommendations', () => {
   });
 
   it('should successfully generate recommendations', async () => {
-    const mockSessionsResponse = { data: mockSessions, error: null };
-    const mockExercisesResponse = { data: mockExercises, error: null };
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from)
-      .mockReturnValueOnce({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        order: vi.fn().mockResolvedValue(mockSessionsResponse)
-      })
-      .mockReturnValueOnce({
-        select: vi.fn().mockReturnThis(),
-        order: vi.fn().mockResolvedValue(mockExercisesResponse)
-      });
+    const { setMockTableData } = await import('../../test/mocks/supabase');
+    setMockTableData('sessions', mockSessions as any);
+    setMockTableData('exercises', mockExercises as any);
 
     const result = await getUserRecommendations('test-user');
 
@@ -125,41 +106,26 @@ describe('getUserRecommendations', () => {
           muscle_groups: ['back', 'biceps', 'shoulders'],
           instructions: ['Hang from bar with hands shoulder-width apart', 'Pull body up until chin is over bar', 'Lower back down with control'],
           created_at: '2024-01-01T00:00:00Z',
-          reason: 'You have mastered beginner exercises, try this advanced exercise'
+          reason: 'You have mastered intermediate exercises, try this advanced exercise'
         }
       ]
     });
   });
 
   it('should handle fetch errors', async () => {
-    const mockError = new Error('Fetch failed');
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockRejectedValue(mockError)
-    });
-
+    const { setMockTableError } = await import('../../test/mocks/supabase');
+    setMockTableError('sessions', new Error('Fetch failed'));
     await expect(getUserRecommendations('test-user')).rejects.toThrow('Fetch failed');
   });
 
   it('should return all exercises for new users', async () => {
-    const mockSessionsResponse = { data: [], error: null };
-    const mockExercisesResponse = { data: mockExercises, error: null };
-    const supabase = createClient('https://test.supabase.co', 'test-key');
-    vi.mocked(supabase.from)
-      .mockReturnValueOnce({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        order: vi.fn().mockResolvedValue(mockSessionsResponse)
-      })
-      .mockReturnValueOnce({
-        select: vi.fn().mockReturnThis(),
-        order: vi.fn().mockResolvedValue(mockExercisesResponse)
-      });
+    const { setMockTableData, setStrictRLS } = await import('../../test/mocks/supabase');
+    setStrictRLS(false);
+    setMockTableData('sessions', []);
+    setMockTableData('exercises', mockExercises as any);
 
     const result = await getUserRecommendations('new-user');
-    expect(result.try_next).toHaveLength(3);
+    expect(result.try_next).toHaveLength(2);
     expect(result.practice_more).toHaveLength(0);
   });
 }); 

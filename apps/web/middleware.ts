@@ -1,13 +1,30 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getCacheControlForPath, setCacheControl } from './lib/cache'
+import { createClient } from '@supabase/supabase-js'
+import { env } from './lib/env'
+
+function getOrCreateRequestId(request: NextRequest): string {
+  const headerId = request.headers.get('x-request-id')
+  if (headerId && headerId.length > 0) return headerId
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return (crypto as any).randomUUID()
+  }
+  // Fallback in rare environments
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
 
 export function middleware(request: NextRequest) {
+  // Get or create request id and ensure it is forwarded to the app routes
+  const requestId = getOrCreateRequestId(request)
+  const forwardedHeaders = new Headers(request.headers)
+  forwardedHeaders.set('x-request-id', requestId)
+
   // Get the pathname from the URL
   const pathname = request.nextUrl.pathname
 
-  // Create base response
-  let response = NextResponse.next()
+  // Create base response and forward the modified request headers downstream
+  let response = NextResponse.next({ request: { headers: forwardedHeaders } })
 
   // Apply cache control headers based on path
   const cacheType = getCacheControlForPath(pathname)
@@ -28,6 +45,76 @@ export function middleware(request: NextRequest) {
 
   // Remove powered by header
   response.headers.delete('x-powered-by')
+
+  // Attach request id header and cookie for client visibility
+  response.headers.set('x-request-id', requestId)
+  response.headers.set('x-trace-id', requestId)
+  response.cookies.set({
+    name: 'velox_rid',
+    value: requestId,
+    path: '/',
+    sameSite: 'lax',
+    httpOnly: false,
+    secure: request.nextUrl.protocol === 'https:'
+  })
+
+  // Auth guard
+  const protectedPaths = [
+    '/profile',
+    '/analyze',
+    '/progress',
+    '/replay',
+    '/verify',
+    '/admin',
+  ]
+  const isProtected = protectedPaths.some((p) => pathname.startsWith(p))
+
+  if (isProtected) {
+    const supabase = createClient(
+      env.NEXT_PUBLIC_SUPABASE_URL!,
+      env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    // Support both Authorization header and httpOnly cookies set by our API
+    const authHeader = request.headers.get('authorization') || ''
+    const headerToken = authHeader.startsWith('Bearer ')
+      ? authHeader.slice('Bearer '.length)
+      : null
+    const cookieToken = request.cookies.get('sb-access-token')?.value || null
+    const token = headerToken || cookieToken
+
+    if (!token) {
+      const resp = NextResponse.redirect(new URL('/login', request.url))
+      resp.headers.set('x-request-id', requestId)
+      resp.headers.set('x-trace-id', requestId)
+      return resp
+    }
+    return supabase.auth
+      .getUser(token)
+      .then(({ data }) => {
+        if (!data.user) {
+          const resp = NextResponse.redirect(new URL('/login', request.url))
+          resp.headers.set('x-request-id', requestId)
+          resp.headers.set('x-trace-id', requestId)
+          return resp
+        }
+        if (pathname.startsWith('/admin')) {
+          const role = (data.user.user_metadata as any)?.role
+          if (role !== 'admin') {
+            const resp = NextResponse.redirect(new URL('/', request.url))
+            resp.headers.set('x-request-id', requestId)
+            resp.headers.set('x-trace-id', requestId)
+            return resp
+          }
+        }
+        return response
+      })
+      .catch(() => {
+        const resp = NextResponse.redirect(new URL('/login', request.url))
+        resp.headers.set('x-request-id', requestId)
+        resp.headers.set('x-trace-id', requestId)
+        return resp
+      })
+  }
 
   return response
 }

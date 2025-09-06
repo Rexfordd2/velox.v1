@@ -3,7 +3,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { trpc } from '@/lib/trpc';
+import { trpc } from '@/app/_trpc/client';
 import {
   Dialog,
   DialogContent,
@@ -146,9 +146,9 @@ export function ChallengeDialog({
             <Button
               type="submit"
               className="w-full"
-              disabled={createChallenge.isLoading || !userId}
+              disabled={createChallenge.status === 'pending' || !userId}
             >
-              {createChallenge.isLoading ? 'Creating...' : 'Create Challenge'}
+              {createChallenge.status === 'pending' ? 'Creating...' : 'Create Challenge'}
             </Button>
           </form>
         </Form>

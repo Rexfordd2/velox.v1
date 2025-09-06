@@ -6,6 +6,89 @@ on:
   pull_request:
     branches: [ main ]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    name: Install dependencies
+    runs-on: ubuntu-latest
+    outputs:
+      pnpm_store_path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - name: Enable corepack
+        run: corepack enable
+      - name: Setup pnpm
+        run: corepack prepare pnpm@latest --activate
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+  lint_type_test_build:
+    name: Lint, typecheck, unit tests, build
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Enable corepack
+        run: corepack enable && corepack prepare pnpm@latest --activate
+      - name: Restore pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ needs.setup.outputs.pnpm_store_path }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm --filter velox-frontend lint && pnpm --filter velox-web lint
+      - name: Typecheck
+        run: pnpm --filter velox-frontend typecheck && pnpm --filter velox-web typecheck
+      - name: Unit tests
+        run: pnpm -w test -- --run
+      - name: Build web apps
+        run: pnpm --filter velox-frontend build && pnpm --filter velox-web build
+      - name: Upload Next build (frontend)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: next-build-frontend-${{ github.sha }}
+          path: frontend/.next
+      - name: Upload Next build (apps/web)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: next-build-web-${{ github.sha }}
+          path: apps/web/.next
+
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
 jobs:
   test:
     runs-on: ubuntu-latest

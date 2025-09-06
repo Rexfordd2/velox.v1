@@ -1,5 +1,5 @@
 import { router } from "./trpc";
-import { leaderboardRouter } from "./routers/leaderboard";
+import { leaderboardRouter } from "./routers/leaderboards";
 import { sessionsRouter } from "./routers/sessions";
 import { progressRouter } from "./routers/progress";
 import { deviceSettingsRouter } from "./routers/deviceSettings";

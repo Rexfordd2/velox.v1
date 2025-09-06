@@ -11,6 +11,7 @@ interface Session {
 }
 
 export async function getUserSessions(userId: string): Promise<Session[]> {
+  if (!supabase) return []
   const { data, error } = await supabase
     .from('sessions')
     .select(`

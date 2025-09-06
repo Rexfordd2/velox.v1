@@ -36,22 +36,25 @@ interface Profile {
   created_at: string;
 }
 
-interface MockData {
+interface MockDataMap {
   exercises: Exercise[];
   sessions: Session[];
   profiles: Profile[];
-  [key: string]: any;
+  [key: string]: any[];
 }
+
+const mockErrors: Record<string, any | null> = Object.create(null);
+let currentUserId = 'test-user';
+let strictRLS = false;
+let requestCount: Record<string, number> = Object.create(null);
 
 // Create a mock query builder that maintains chain state
 class QueryBuilder {
   private query: any = {};
-  private mockData: any = null;
-  private mockError: any = null;
+  private table: string;
 
-  constructor(mockData: any = null, mockError: any = null) {
-    this.mockData = mockData;
-    this.mockError = mockError;
+  constructor(table: string) {
+    this.table = table;
   }
 
   select(columns?: string) {
@@ -71,28 +74,19 @@ class QueryBuilder {
   }
 
   single() {
-    if (this.mockError) {
-      return Promise.resolve({ data: null, error: this.mockError });
-    }
+    const tableError = mockErrors[this.table];
+    if (tableError) return Promise.resolve({ data: null, error: tableError });
 
-    if (!this.mockData) {
-      return Promise.resolve({ data: null, error: null });
-    }
+    const tableRows = mockData[this.table] || [];
+    let result: any = tableRows[0] ?? null;
 
-    let result = Array.isArray(this.mockData) ? this.mockData[0] : this.mockData;
-
-    if (this.query.filters) {
+    if (this.query.filters && result) {
       const matches = this.query.filters.every((filter: any) => {
-        if (filter.type === 'eq') {
-          return result[filter.column] === filter.value;
-        }
+        if (filter.type === 'eq') return result[filter.column] === filter.value;
         return true;
       });
-      if (!matches) {
-        result = null;
-      }
+      if (!matches) result = null;
     }
-
     return Promise.resolve({ data: result, error: null });
   }
 
@@ -220,35 +214,102 @@ class QueryBuilder {
     return this;
   }
 
-  then() {
-    if (this.mockError) {
-      return Promise.resolve({ data: null, error: this.mockError });
-    }
+  then(resolve?: (v: any) => void, reject?: (e: any) => void) {
+    try {
+      const tableError = mockErrors[this.table];
+      // Simulate simple RLS: any filter on user_id not equal to current user yields error
+      const userFilter = (this.query.filters || []).find((f: any) => f.type === 'eq' && f.column === 'user_id');
+      if (userFilter && userFilter.value !== currentUserId) {
+        if (strictRLS) {
+          resolve && resolve({ data: null, error: new Error('Forbidden') });
+          return;
+        } else {
+          resolve && resolve({ data: [], error: null });
+          return;
+        }
+      }
+      // Profiles privacy: block direct id lookup for other users
+      const idFilter = (this.query.filters || []).find((f: any) => f.type === 'eq' && f.column === 'id');
+      if (this.table === 'profiles' && idFilter && idFilter.value !== currentUserId) {
+        if (strictRLS) {
+          resolve && resolve({ data: null, error: new Error('Forbidden') });
+          return;
+        } else {
+          resolve && resolve({ data: [], error: null });
+          return;
+        }
+      }
+      // Require auth for broad reads without filters on sessions
+      if (this.table === 'sessions' && (!this.query.filters || this.query.filters.length === 0)) {
+        resolve && resolve({ data: null, error: new Error('Auth required') });
+        return;
+      }
+      if (tableError) {
+        resolve && resolve({ data: null, error: tableError });
+        return;
+      }
 
-    let result = this.mockData;
+      const rows = [...(mockData[this.table] || [])];
+      let result: any = rows;
 
-    if (this.query.filters) {
-      result = Array.isArray(result) ? result.filter((item: any) => {
-        return this.query.filters.every((filter: any) => {
-          if (filter.type === 'eq') {
-            return item[filter.column] === filter.value;
-          }
-          return true;
+      // Apply filters
+      if (this.query.filters) {
+        result = result.filter((item: any) => {
+          return this.query.filters.every((filter: any) => {
+            if (filter.type === 'eq') return item[filter.column] === filter.value;
+            return true;
+          });
         });
-      }) : result;
-    }
+      }
 
-    if (this.query.type === 'insert') {
-      const newItem = { id: Date.now(), ...this.query.data };
-      result = [newItem];
-    }
+      // Basic rate limiting for select-heavy tests
+      if (this.query.select) {
+        const key = `${this.table}:select`;
+        requestCount[key] = (requestCount[key] || 0) + 1;
+        if (requestCount[key] > 100) {
+          resolve && resolve({ data: null, error: new Error('Too many requests') });
+          return;
+        }
+      }
 
-    return Promise.resolve({ data: result, error: null });
+      // Apply mutations
+      if (this.query.type === 'insert') {
+        const newItem = { id: Date.now(), ...this.query.data };
+        mockData[this.table] = [...rows, newItem];
+        result = [newItem];
+      } else if (this.query.type === 'update') {
+        const updated = rows.map((item: any) => {
+          const matches = (this.query.filters || []).every((f: any) => f.type !== 'eq' || item[f.column] === f.value);
+          return matches ? { ...item, ...this.query.data } : item;
+        });
+        mockData[this.table] = updated;
+        result = null;
+      } else if (this.query.type === 'delete') {
+        const remaining = rows.filter((item: any) => !(this.query.filters || []).every((f: any) => f.type !== 'eq' || item[f.column] === f.value));
+        mockData[this.table] = remaining;
+        result = null;
+      }
+
+      // Apply ordering
+      if (this.query.order && Array.isArray(result)) {
+        const { column, ascending = true } = this.query.order;
+        result = [...result].sort((a: any, b: any) => {
+          const av = a[column];
+          const bv = b[column];
+          if (av === bv) return 0;
+          return ascending ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+        });
+      }
+
+      resolve && resolve({ data: result, error: null });
+    } catch (e) {
+      reject && reject(e);
+    }
   }
 }
 
 // Mock data for tests
-const mockData: MockData = {
+const mockData: MockDataMap = {
   exercises: [
     {
       id: 1,
@@ -285,7 +346,7 @@ const mockData: MockData = {
 // Mock Supabase client
 export const mockSupabaseClient = {
   from: (table: string) => {
-    const builder = new QueryBuilder(mockData[table] || []);
+    const builder = new QueryBuilder(table);
     return {
       select: (columns?: string) => {
         builder.select(columns);
@@ -300,6 +361,14 @@ export const mockSupabaseClient = {
         return builder;
       },
       single: () => builder.single(),
+      update: (data: any) => {
+        builder.update(data);
+        return builder;
+      },
+      delete: () => {
+        builder.delete();
+        return builder;
+      },
       then: () => builder.then()
     };
   },
@@ -330,3 +399,60 @@ export const mockSupabaseClient = {
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => mockSupabaseClient
 })); 
+
+// Helpers for tests to control mock data and errors
+export function setMockTableData(table: string, rows: any[]) {
+  mockData[table] = Array.isArray(rows) ? rows : [];
+}
+
+export function setMockTableError(table: string, error: any | null) {
+  mockErrors[table] = error;
+}
+
+export function resetSupabaseMock() {
+  for (const key of Object.keys(mockData)) {
+    if (Array.isArray(mockData[key])) mockData[key] = [];
+  }
+  for (const k of Object.keys(mockErrors)) delete mockErrors[k];
+  requestCount = Object.create(null);
+  // Seed defaults again if needed
+  mockData.exercises = [
+    {
+      id: 1,
+      name: 'Push-up',
+      description: 'A basic bodyweight exercise',
+      category: 'strength',
+      difficulty: 'beginner',
+      muscle_groups: ['chest', 'shoulders'],
+      equipment: ['none'],
+      instructions: 'Start in a plank position...'
+    }
+  ];
+  mockData.sessions = [
+    {
+      id: 1,
+      user_id: 'test-user-id',
+      exercise_id: 1,
+      created_at: new Date().toISOString(),
+      score: 85,
+      reps: 10,
+      difficulty: 'beginner'
+    }
+  ];
+  mockData.profiles = [
+    {
+      id: 'test-user-id',
+      username: 'testuser',
+      avatar_url: 'https://test.cdn/avatar.jpg',
+      created_at: new Date().toISOString()
+    }
+  ];
+}
+
+export function setMockCurrentUserId(userId: string) {
+  currentUserId = userId;
+}
+
+export function setStrictRLS(val: boolean) {
+  strictRLS = val;
+}

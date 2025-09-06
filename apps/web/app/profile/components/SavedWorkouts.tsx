@@ -3,22 +3,17 @@
 import { trpc } from '@/app/_trpc/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import EmptyState from '@/components/ui/EmptyState';
+import LoadingState from '@/components/ui/LoadingState';
+import ErrorState from '@/components/ui/ErrorState';
 import { formatDistanceToNow } from 'date-fns';
 
 export function SavedWorkouts() {
-  const { data: savedWorkouts, isLoading } = trpc.profile.getSavedWorkouts.useQuery();
+  const { data: savedWorkouts, isLoading, error, refetch } = trpc.profile.getSavedWorkouts.useQuery();
 
-  if (isLoading) {
-    return <div>Loading saved workouts...</div>;
-  }
-
-  if (!savedWorkouts?.length) {
-    return (
-      <Card className="p-6">
-        <p className="text-center text-gray-500">No saved workouts yet</p>
-      </Card>
-    );
-  }
+  if (isLoading) return <LoadingState lines={3} />;
+  if (error) return <ErrorState onRetry={() => void refetch()} />;
+  if (!savedWorkouts?.length) return <EmptyState title="No saved workouts yet" description="Save workouts to access them quickly here." />;
 
   return (
     <div className="space-y-4">

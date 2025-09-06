@@ -7,7 +7,10 @@ const getHistorySchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   timeRange: z.enum(['week', 'month', 'year']).optional(),
-  limit: z.number().min(1).max(100).default(50),
+  limit: z.number().min(1).max(100).default(25),
+  cursor: z.string().optional(), // ISO created_at cursor
+  sortBy: z.enum(['created_at', 'exercise_type', 'form_score', 'rep_count']).default('created_at'),
+  sortDir: z.enum(['asc', 'desc']).default('desc'),
 });
 
 export const workoutsRouter = createTRPCRouter({
@@ -15,14 +18,14 @@ export const workoutsRouter = createTRPCRouter({
     .input(getHistorySchema)
     .query(async ({ ctx, input }) => {
       const { supabase, user } = ctx;
-      const { exerciseType, startDate, endDate, timeRange, limit } = input;
+      const { exerciseType, startDate, endDate, timeRange, limit, cursor, sortBy, sortDir } = input;
 
       let query = supabase
         .from('workout_sessions')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(limit);
+        .order(sortBy, { ascending: sortDir === 'asc' })
+        .limit(limit + 1); // fetch one extra to infer nextCursor
 
       if (exerciseType) {
         query = query.eq('exercise_type', exerciseType);
@@ -38,24 +41,36 @@ export const workoutsRouter = createTRPCRouter({
 
       if (timeRange) {
         const now = new Date();
-        let startTime: Date;
-
+        let startTime: Date | null = null;
         switch (timeRange) {
           case 'week':
-            startTime = new Date(now.setDate(now.getDate() - 7));
+            startTime = new Date();
+            startTime.setDate(now.getDate() - 7);
             break;
           case 'month':
-            startTime = new Date(now.setMonth(now.getMonth() - 1));
+            startTime = new Date();
+            startTime.setMonth(now.getMonth() - 1);
             break;
           case 'year':
-            startTime = new Date(now.setFullYear(now.getFullYear() - 1));
+            startTime = new Date();
+            startTime.setFullYear(now.getFullYear() - 1);
             break;
         }
-
-        query = query.gte('created_at', startTime.toISOString());
+        if (startTime) {
+          query = query.gte('created_at', startTime.toISOString());
+        }
       }
 
-      const { data: workouts, error } = await query;
+      // Cursor on created_at for stable pagination default; if sorting by a different column, still use created_at cursor as tiebreaker.
+      if (cursor) {
+        if (sortDir === 'asc') {
+          query = query.gt('created_at', cursor);
+        } else {
+          query = query.lt('created_at', cursor);
+        }
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         throw new TRPCError({
@@ -65,51 +80,43 @@ export const workoutsRouter = createTRPCRouter({
         });
       }
 
-      return workouts || [];
+      const rows = data ?? [];
+      let nextCursor: string | undefined = undefined;
+      if (rows.length > limit) {
+        const next = rows.pop();
+        nextCursor = next?.created_at as string | undefined;
+      }
+
+      return { items: rows, nextCursor } as const;
     }),
 
   getPersonalBests: protectedProcedure
     .query(async ({ ctx }) => {
       const { supabase, user } = ctx;
 
-      const { data: exercises, error: exercisesError } = await supabase
-        .from('workout_sessions')
-        .select('exercise_type')
-        .eq('user_id', user.id)
-        .distinct();
+      const { data, error } = await supabase.rpc('get_user_personal_bests', {
+        p_user_id: user.id,
+      });
 
-      if (exercisesError) {
+      if (error) {
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to fetch exercises',
-          cause: exercisesError,
+          message: 'Failed to fetch personal bests',
+          cause: error,
         });
       }
 
-      const personalBests = await Promise.all(
-        exercises.map(async ({ exercise_type }) => {
-          const { data: bests, error: bestsError } = await supabase
-            .rpc('get_exercise_personal_bests', {
-              p_user_id: user.id,
-              p_exercise_type: exercise_type,
-            });
-
-          if (bestsError) {
-            throw new TRPCError({
-              code: 'INTERNAL_SERVER_ERROR',
-              message: 'Failed to fetch personal bests',
-              cause: bestsError,
-            });
-          }
-
-          return {
-            type: exercise_type,
-            ...bests[0],
-          };
-        })
-      );
-
-      return personalBests;
+      return (data ?? []).map((row: any) => ({
+        type: row.exercise_type,
+        best_form_score: row.best_form_score,
+        best_form_score_date: row.best_form_score_date,
+        max_reps: row.max_reps,
+        max_reps_date: row.max_reps_date,
+        best_duration: row.best_duration,
+        best_duration_date: row.best_duration_date,
+        max_weight: row.max_weight,
+        max_weight_date: row.max_weight_date,
+      }));
     }),
 
   getRecent: protectedProcedure
