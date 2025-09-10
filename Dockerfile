@@ -1,11 +1,11 @@
 # --- build stage ---
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 COPY . .
 RUN corepack enable && pnpm install --frozen-lockfile && pnpm build
 
 # --- production stage ---
-FROM node:20-alpine
+FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/frontend/.next .next
