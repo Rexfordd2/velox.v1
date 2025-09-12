@@ -10,7 +10,10 @@ jobs:
       - run: npm i -g pnpm
       - run: pnpm i
       - run: pnpm spec:install
-      - run: pnpm spec:e2e
+      - name: Run Playwright E2E
+        run: pnpm spec:e2e
+        env:
+          SPEC_BASE_URL: http://localhost:3001
       - run: pnpm spec:run
       - uses: actions/upload-artifact@v4
         with:
