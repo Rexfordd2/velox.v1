@@ -25,7 +25,8 @@ export default defineConfig({
     {
       command: 'cd apps/web && npx cross-env PLAYWRIGHT_E2E=1 npm run dev -- -p 3001',
       url: 'http://localhost:3001',
-      timeout: 180_000,
+      // Increase timeout for CI cold starts
+      timeout: 420_000,
       reuseExistingServer: true,
     },
   ],
