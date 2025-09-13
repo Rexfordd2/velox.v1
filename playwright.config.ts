@@ -23,10 +23,10 @@ export default defineConfig({
   webServer: [
     // Admin/web app on 3001 for CRUD flows
     {
-      command: 'cd apps/web && npx cross-env PLAYWRIGHT_E2E=1 npm run dev -- -p 3001',
+      command: 'cd apps/web && npx cross-env PLAYWRIGHT_E2E=1 PORT=3001 npm run start:prod',
       url: 'http://localhost:3001',
-      // Increase timeout for CI cold starts
-      timeout: 420_000,
+      // Increase timeout for CI cold starts and production build
+      timeout: 600_000,
       reuseExistingServer: true,
     },
   ],

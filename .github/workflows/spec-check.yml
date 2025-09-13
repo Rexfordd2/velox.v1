@@ -9,6 +9,8 @@ jobs:
         with: { node-version: '20' }
       - run: npm i -g pnpm
       - run: pnpm i
+      - name: Build apps/web for production
+        run: pnpm --filter velox-web build
       - run: pnpm spec:install
       - name: Run Playwright E2E
         run: pnpm spec:e2e
